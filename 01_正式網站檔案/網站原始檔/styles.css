@@ -256,7 +256,8 @@ h3 {
 .hero-service-bar span,
 .summary-top span,
 .summary-line span,
-.payment-box > span {
+.payment-box > span,
+.payment-title span {
   color: var(--gold);
   font-size: 13px;
   font-weight: 900;
@@ -946,14 +947,75 @@ label {
 
 .payment-box {
   display: grid;
-  gap: 12px;
-  padding-top: 16px;
+  gap: 14px;
+  margin: 18px 0 4px;
+  padding: 18px;
+  border: 1px solid rgba(218, 174, 88, .24);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(233, 191, 105, .10), rgba(0, 0, 0, .16)),
+    rgba(0, 0, 0, .24);
+}
+
+.payment-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.payment-title small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: right;
 }
 
 .payment-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.payment-box .pay {
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+  min-height: 76px;
+  padding: 13px 14px;
+  text-align: left;
+}
+
+.payment-box .pay strong,
+.payment-box .pay small {
+  display: block;
+}
+
+.payment-box .pay strong {
+  color: #fff2c9;
+  font-size: 16px;
+}
+
+.payment-box .pay small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.payment-box .pay.active {
+  box-shadow: inset 0 0 0 1px rgba(250, 222, 150, .6), 0 10px 22px rgba(185, 133, 51, .16);
+}
+
+.payment-box .pay.active small {
+  color: #ead49d;
+}
+
+.payment-account-field {
+  padding: 13px 14px;
+  border: 1px solid rgba(218, 174, 88, .18);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .22);
 }
 
 .payment-preview {
@@ -1180,9 +1242,34 @@ label {
   .form-grid,
   .admin-form,
   .verify-row,
-  .member-panel,
-  .payment-options {
+  .member-panel {
     grid-template-columns: 1fr;
+  }
+
+  .payment-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .payment-title small {
+    text-align: left;
+  }
+
+  .payment-box {
+    padding: 15px;
+  }
+
+  .payment-box .pay {
+    min-height: 70px;
+    padding: 12px;
+  }
+
+  .order-form > .submit-btn {
+    position: sticky;
+    bottom: 12px;
+    z-index: 8;
+    width: 100%;
+    min-height: 54px;
   }
 
   .member-panel {

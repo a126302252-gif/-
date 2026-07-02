@@ -65,7 +65,7 @@
     <link rel="preconnect" href="https://static.line-scdn.net" crossorigin />
     <link rel="dns-prefetch" href="https://script.google.com" />
     <link rel="preload" as="image" href="assets/dragon-premium-hero.webp" fetchpriority="high" />
-    <link rel="stylesheet" href="styles.css?v=20260702-hidden-fix-1" />
+    <link rel="stylesheet" href="styles.css?v=20260702-payment-layout-1" />
     <script defer src="products.js?v=20260702-main-delta-v1"></script>
     <script defer src="line-config.js?v=20260702-main-account-v1"></script>
     <script defer src="payment-config.js?v=20260629-order-success"></script>
@@ -223,11 +223,6 @@
               玩家名稱
               <input id="playerName" type="text" placeholder="請填遊戲內玩家名稱" required />
             </label>
-            <label id="paymentAccountField">
-              付款帳戶識別
-              <input id="paymentAccountKey" type="text" maxlength="80" placeholder="銀行名稱＋帳號末五碼" autocomplete="off" />
-              <small id="paymentAccountHint">只填銀行名稱與帳號末五碼，不要填完整帳號。</small>
-            </label>
             <label id="gameLoginMethodField" hidden>
               登入方式
               <select id="gameLoginMethod">
@@ -250,6 +245,41 @@
               密碼
               <input id="gameLoginPassword" type="text" maxlength="160" autocomplete="off" placeholder="請填遊戲登入密碼" />
             </label>
+          </div>
+
+          <div class="payment-box">
+            <div class="payment-title">
+              <span>付款方式</span>
+              <small>選好後送出訂單，付款資訊會由官方 LINE 傳送。</small>
+            </div>
+            <div class="payment-options">
+              <button class="pay active" data-payment="網銀" type="button">
+                <strong>網銀轉帳</strong>
+                <small>銀行帳戶付款</small>
+              </button>
+              <button class="pay" data-payment="無卡" type="button">
+                <strong>無卡存款</strong>
+                <small>ATM / 超商代碼</small>
+              </button>
+              <button class="pay" data-payment="LINE Pay" type="button">
+                <strong>LINE Pay</strong>
+                <small>請向客服確認</small>
+              </button>
+              <button class="pay" data-payment="街口" type="button">
+                <strong>街口支付</strong>
+                <small>填末三碼辨識</small>
+              </button>
+            </div>
+            <label id="paymentAccountField" class="payment-account-field">
+              付款帳戶識別
+              <input id="paymentAccountKey" type="text" maxlength="80" placeholder="銀行名稱＋帳號末五碼" autocomplete="off" />
+              <small id="paymentAccountHint">只填銀行名稱與帳號末五碼，不要填完整帳號。</small>
+            </label>
+            <div class="payment-preview">
+              <small>已選付款方式</small>
+              <p id="paymentPreview">付款方式：網銀</p>
+              <strong class="payment-safety-warning">只接受本人付款，禁止第三方代付、代轉、代存。</strong>
+            </div>
           </div>
 
           <p class="verify-status" id="verifyStatus">請先登入 LINE 會員後再下單。</p>
@@ -314,20 +344,6 @@
           <div class="summary-line">
             <span>處理時間</span>
             <b id="summaryEta">確認後處理</b>
-          </div>
-          <div class="payment-box">
-            <span>付款方式</span>
-            <div class="payment-options">
-              <button class="pay active" data-payment="網銀" type="button">網銀</button>
-              <button class="pay" data-payment="無卡" type="button">無卡</button>
-              <button class="pay" data-payment="LINE Pay" type="button">LINE Pay</button>
-              <button class="pay" data-payment="街口" type="button">街口</button>
-            </div>
-            <div class="payment-preview">
-              <small>已選付款方式</small>
-              <p id="paymentPreview">付款方式：網銀</p>
-              <strong class="payment-safety-warning">只接受本人付款，禁止第三方代付、代轉、代存。</strong>
-            </div>
           </div>
           <div class="confirmation" id="confirmation" hidden></div>
         </aside>
