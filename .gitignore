@@ -1,0 +1,51 @@
+# Local service folders
+.netlify/
+.agents/
+
+# Local credentials / deployment configs
+.env
+.env.*
+.clasp.json
+.clasprc.json
+*.pem
+*.key
+*.p12
+*.pfx
+*service-account*.json
+*service_account*.json
+*credentials*.json
+*client_secret*.json
+
+# Private handoff docs, backups, exports, screenshots
+00_後台總入口_點我.html
+02_使用說明/
+99_舊檔備份_可忽略/
+
+# Generated archives
+*.zip
+*.7z
+*.rar
+
+# Customer/order/member exports
+*訂單*.csv
+*訂單*.xlsx
+*訂單*.xls
+*會員*.csv
+*會員*.xlsx
+*會員*.xls
+*客人*.csv
+*客人*.xlsx
+*客人*.xls
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+coverage/

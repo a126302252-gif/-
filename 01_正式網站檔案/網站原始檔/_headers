@@ -1,0 +1,20 @@
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/app.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/styles.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/products.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/line-config.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/payment-config.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

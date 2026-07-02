@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>陳龍龍工作室 | 遊戲商城</title>
+    <script>
+      (() => {
+        const params = new URLSearchParams(location.search);
+        const hasLineCallback = params.has("code") && params.has("state");
+        const liffState = params.get("liff.state");
+        const normalizeLineTarget = (value) => {
+          if (!value) return "";
+          let target = value;
+          try {
+            target = decodeURIComponent(value);
+          } catch (error) {
+            target = value;
+          }
+          if (!target.startsWith("/")) target = `/${target}`;
+          return target.startsWith("//") ? "" : target;
+        };
+
+        const goToLineTarget = (target) => {
+          const targetUrl = new URL(target, location.origin);
+          if (targetUrl.pathname === "/" && hasLineCallback) targetUrl.pathname = "/order";
+          params.delete("liff.state");
+          params.forEach((value, key) => {
+            if (!key.startsWith("liff.") && !targetUrl.searchParams.has(key)) {
+              targetUrl.searchParams.append(key, value);
+            }
+          });
+          const nextPath = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash || location.hash}`;
+          const currentPath = `${location.pathname}${location.search}${location.hash}`;
+          if (nextPath !== currentPath) location.replace(nextPath);
+        };
+
+        if (liffState) {
+          const target = normalizeLineTarget(liffState);
+          if (target) {
+            goToLineTarget(target);
+            return;
+          }
+        }
+
+        if ((location.pathname.replace(/\/+$/, "") || "/") === "/" && hasLineCallback) {
+          const targetUrl = new URL(location.href);
+          targetUrl.pathname = "/order";
+          location.replace(`${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+          return;
+        }
+
+        const path = location.pathname.replace(/\/+$/, "") || "/";
+        const previewPage = params.get("view");
+        document.documentElement.dataset.page = ["prices", "order", "member"].includes(previewPage)
+          ? previewPage
+          :
+          path === "/order" || path === "/order.html"
+            ? "order"
+            : path === "/member" || path === "/member.html"
+              ? "member"
+              : "prices";
+      })();
+    </script>
+    <link rel="preconnect" href="https://static.line-scdn.net" crossorigin />
+    <link rel="dns-prefetch" href="https://script.google.com" />
+    <link rel="preload" as="image" href="assets/dragon-premium-hero.webp" fetchpriority="high" />
+    <link rel="stylesheet" href="styles.css?v=20260701-inline-login-1" />
+    <script defer src="products.js?v=20260701-catalog-pages-1"></script>
+    <script defer src="line-config.js?v=20260701-main-oa-1"></script>
+    <script defer src="payment-config.js?v=20260629-order-success"></script>
+    <script>
+      if (location.hostname === "dc12633.netlify.app") {
+        location.replace(`https://327xzwyu.com${location.pathname}${location.search}${location.hash}`);
+      }
+    </script>
+    <script>
+      if (document.documentElement.dataset.page !== "prices") {
+        const lineSdk = document.createElement("script");
+        lineSdk.id = "lineLiffSdk";
+        lineSdk.async = true;
+        lineSdk.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+        document.head.appendChild(lineSdk);
+      }
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="陳龍龍工作室首頁">
+        <span>
+          <strong>陳龍龍工作室</strong>
+          <small>安全到帳・專業核單</small>
+        </span>
+      </a>
+
+      <nav class="nav" aria-label="主要導覽">
+        <a data-nav-page="prices" href="/">商品價目</a>
+        <a data-nav-page="order" href="/order">下單付款</a>
+        <a data-nav-page="member" href="/member">會員專區</a>
+      </nav>
+
+      <a class="header-action" href="/order">開始下單</a>
+    </header>
+
+    <main id="home">
+      <section class="hero page-view page-prices">
+        <div class="hero-copy">
+          <p class="eyebrow">Game Top-Up Service</p>
+          <h1>陳龍龍工作室</h1>
+          <p class="hero-subtitle">安全・快速・專業・用心</p>
+          <p class="lead">遊戲價目清楚呈現，登入 LINE 後即可自助送單。</p>
+          <div class="hero-actions">
+            <a class="primary-action" href="#games">瀏覽商品</a>
+            <a class="secondary-action" href="/order">快速下單</a>
+            <a class="secondary-action" href="/member">會員專區</a>
+          </div>
+        </div>
+
+        <div class="hero-service-bar" aria-label="服務特色">
+          <span><b>安全核單</b><small>資料送出前再次確認</small></span>
+          <span><b>即時報價</b><small>網站金額同步後台</small></span>
+          <span><b>LINE 驗證</b><small>會員登入後自助下單</small></span>
+          <span><b>四種付款</b><small>網銀・無卡・LINE Pay・街口</small></span>
+        </div>
+      </section>
+
+      <section class="store-shell page-view page-prices" id="games">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">商城列表</p>
+            <h2>選擇遊戲</h2>
+          </div>
+          <div class="search-box">
+            <input id="gameSearch" type="search" placeholder="搜尋遊戲名稱" />
+          </div>
+        </div>
+
+        <div class="category-tabs" id="categoryTabs" aria-label="遊戲分類"></div>
+        <div class="game-grid" id="gameGrid"></div>
+      </section>
+
+      <section class="detail-panel page-view page-prices" id="detail">
+        <div class="detail-hero">
+          <div>
+            <p class="eyebrow" id="detailCategory">UID 儲值</p>
+            <h2 id="detailName">選擇遊戲</h2>
+            <p id="detailDesc">點選上方遊戲後，這裡會顯示該遊戲的代儲價目表與說明。</p>
+          </div>
+        </div>
+
+        <div class="catalog-filter-panel" id="catalogFilters" hidden></div>
+        <div class="price-list" id="priceList"></div>
+      </section>
+
+      <section class="order-zone page-view page-order" id="order">
+        <div class="order-page-head">
+          <div>
+            <p class="eyebrow">Order & Payment</p>
+            <h1>下單與付款</h1>
+            <p>選擇商品後填寫遊戲資料與付款方式，送出成功會立即顯示訂單編號。</p>
+          </div>
+          <a class="secondary-button" href="/">返回商品價目</a>
+        </div>
+        <form class="order-form" id="orderForm">
+          <div class="section-head compact">
+            <div>
+              <p class="eyebrow">線上訂單</p>
+              <h2>提交代儲資料</h2>
+            </div>
+            <span class="secure-badge">LINE 會員驗證</span>
+          </div>
+
+          <div class="member-panel" id="lineMemberPanel">
+            <div class="member-identity">
+              <span>LINE 會員</span>
+              <strong id="lineMemberName">尚未登入</strong>
+              <small id="lineMemberHint">請先登入 LINE 後再下單。</small>
+            </div>
+            <div class="member-summary" id="lineMemberSummary" hidden>
+              <div>
+                <span>會員等級</span>
+                <strong id="memberLevelName">普通會員</strong>
+              </div>
+              <div>
+                <span>目前折扣</span>
+                <strong id="memberDiscountLabel">無折扣</strong>
+              </div>
+              <div>
+                <span>累積消費</span>
+                <strong id="memberTotalSpent">NT$ 0</strong>
+              </div>
+              <div>
+                <span>完成訂單</span>
+                <strong id="memberCompletedOrders">0 筆</strong>
+              </div>
+            </div>
+            <button class="secondary-button line-login-button" id="lineLoginButton" type="button">LINE 登入</button>
+            <a class="secondary-button member-area-link" href="/member">查看會員專區</a>
+          </div>
+
+          <div class="form-grid">
+            <label>
+              遊戲
+              <select id="gameSelect" required></select>
+            </label>
+            <label>
+              方案
+              <select id="planSelect" required></select>
+            </label>
+            <label>
+              數量
+              <input id="quantity" type="number" min="1" max="20" value="1" required />
+            </label>
+            <label>
+              伺服器 / 區服
+              <input id="serverName" type="text" placeholder="例如：台服、國際服、亞服" required />
+            </label>
+            <label>
+              UID
+              <input id="playerId" type="text" placeholder="請填 UID" required />
+            </label>
+            <label>
+              玩家名稱
+              <input id="playerName" type="text" placeholder="請填遊戲內玩家名稱" required />
+            </label>
+            <label id="paymentAccountField">
+              付款帳戶識別
+              <input id="paymentAccountKey" type="text" maxlength="80" placeholder="銀行名稱＋帳號末五碼" autocomplete="off" />
+              <small id="paymentAccountHint">只填銀行名稱與帳號末五碼，不要填完整帳號。</small>
+            </label>
+            <label id="gameLoginMethodField" hidden>
+              登入方式
+              <select id="gameLoginMethod">
+                <option value="">請選擇登入方式</option>
+                <option value="掃碼登入">掃碼登入</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Google">Google</option>
+                <option value="Apple ID">Apple ID</option>
+                <option value="LINE">LINE</option>
+                <option value="Twitter / X">Twitter / X</option>
+                <option value="其他">其他</option>
+              </select>
+              <small id="loginInfoHint">此方案需要提供登入方式、帳號與密碼。</small>
+            </label>
+            <label id="gameLoginAccountField" hidden>
+              帳號
+              <input id="gameLoginAccount" type="text" maxlength="160" autocomplete="off" placeholder="請填遊戲登入帳號" />
+            </label>
+            <label id="gameLoginPasswordField" hidden>
+              密碼
+              <input id="gameLoginPassword" type="text" maxlength="160" autocomplete="off" placeholder="請填遊戲登入密碼" />
+            </label>
+          </div>
+
+          <p class="verify-status" id="verifyStatus">請先登入 LINE 會員後再下單。</p>
+
+          <label class="wide">
+            備註
+            <textarea id="notes" rows="4" placeholder="可填付款後五碼、特殊需求或客服備註"></textarea>
+          </label>
+
+          <section class="terms-confirmation" aria-labelledby="termsTitle">
+            <div class="terms-confirmation-head">
+              <div>
+                <span>下單前必讀</span>
+                <strong id="termsTitle">購買須知與年齡確認</strong>
+              </div>
+              <button class="secondary-button" id="openTermsButton" type="button">閱讀購買須知</button>
+            </div>
+            <p>須完整閱讀購買須知並完成兩項確認，才能送出訂單。</p>
+            <label class="check-row terms-check">
+              <input id="termsAccepted" type="checkbox" required disabled />
+              <span>我已完整閱讀並同意購買須知。</span>
+            </label>
+            <label class="check-row terms-check">
+              <input id="ageConfirmed" type="checkbox" required />
+              <span>我確認本人已滿 18 歲；若未滿 18 歲，已事先取得法定代理人同意後下單。</span>
+            </label>
+          </section>
+
+          <label class="check-row">
+            <input id="policy" type="checkbox" required />
+            <span>我確認遊戲、伺服器、UID 與方案皆正確；若填寫錯誤導致儲值問題，需自行承擔責任。</span>
+          </label>
+
+          <button class="submit-btn" type="submit">送出訂單</button>
+        </form>
+
+        <aside class="summary" aria-live="polite">
+          <div class="summary-top">
+            <span>折扣後金額</span>
+            <strong id="summaryTotal">NT$ 0</strong>
+          </div>
+          <div class="summary-line">
+            <span>原價</span>
+            <b id="summaryOriginalTotal">NT$ 0</b>
+          </div>
+          <div class="summary-line">
+            <span>會員等級</span>
+            <b id="summaryMemberLevel">普通會員</b>
+          </div>
+          <div class="summary-line">
+            <span>會員折扣</span>
+            <b id="summaryDiscount">無折扣</b>
+          </div>
+          <div class="summary-line">
+            <span>遊戲</span>
+            <b id="summaryGame">尚未選擇</b>
+          </div>
+          <div class="summary-line">
+            <span>方案</span>
+            <b id="summaryPlan">尚未選擇</b>
+          </div>
+          <div class="summary-line">
+            <span>處理時間</span>
+            <b id="summaryEta">確認後處理</b>
+          </div>
+          <div class="payment-box">
+            <span>付款方式</span>
+            <div class="payment-options">
+              <button class="pay active" data-payment="網銀" type="button">網銀</button>
+              <button class="pay" data-payment="無卡" type="button">無卡</button>
+              <button class="pay" data-payment="LINE Pay" type="button">LINE Pay</button>
+              <button class="pay" data-payment="街口" type="button">街口</button>
+            </div>
+            <div class="payment-preview">
+              <small>已選付款方式</small>
+              <p id="paymentPreview">付款方式：網銀</p>
+              <strong class="payment-safety-warning">只接受本人付款，禁止第三方代付、代轉、代存。</strong>
+            </div>
+          </div>
+          <div class="confirmation" id="confirmation" hidden></div>
+        </aside>
+      </section>
+
+      <section class="member-area page-view page-member" id="memberArea">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Member Center</p>
+            <h2>會員專區</h2>
+          </div>
+          <div class="member-page-actions">
+            <a class="secondary-button" href="/">查看商品價目</a>
+            <button class="secondary-button" id="memberAreaLoginButton" type="button">LINE 會員登入</button>
+          </div>
+        </div>
+
+        <div class="member-area-grid" id="memberAreaContent">
+          <article class="member-level-card">
+            <span>目前會員等級</span>
+            <strong id="areaMemberLevel">尚未登入</strong>
+            <p id="areaMemberHint">登入 LINE 後即可查看會員等級、累積消費與最近訂單。</p>
+          </article>
+
+          <article class="member-progress-card">
+            <div class="member-card-head">
+              <span>累積消費</span>
+              <strong id="areaTotalSpent">NT$ 0</strong>
+            </div>
+            <div class="progress-track" aria-label="會員升級進度">
+              <div class="progress-fill" id="areaProgressFill" style="width: 0%"></div>
+            </div>
+            <p id="areaNextLevelText">登入後顯示升級進度。</p>
+          </article>
+
+          <article class="member-benefits-card">
+            <div class="member-card-head">
+              <span>會員權益</span>
+              <strong id="areaDiscountLabel">無折扣</strong>
+            </div>
+            <div class="benefit-list">
+              <div><span>優先排單</span><b id="areaPriorityStatus">尚未登入</b></div>
+              <div><span>完成訂單</span><b id="areaCompletedOrders">0 筆</b></div>
+              <div><span>下次折扣</span><b id="areaDiscountPercent">原價</b></div>
+            </div>
+          </article>
+
+          <article class="member-rules-card">
+            <h3>會員等級權益說明</h3>
+            <div class="level-rule-grid" id="levelRuleGrid">
+              <div><b>普通會員</b><span>預設等級・一般排單・無折扣</span></div>
+              <div><b>青銅會員</b><span>累積 NT$ 30,000・優先排單・無折扣</span></div>
+              <div><b>白銀會員</b><span>累積 NT$ 50,000・優先排單・全館 99 折</span></div>
+              <div><b>黃金會員</b><span>累積 NT$ 100,000・優先排單・全館 98 折</span></div>
+            </div>
+          </article>
+
+          <article class="member-orders-card">
+            <div class="member-card-head">
+              <span>最近訂單紀錄</span>
+              <strong id="areaOrderCount">0 筆</strong>
+            </div>
+            <div class="member-orders-list" id="areaRecentOrders">
+              <p>登入後顯示最近訂單。</p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <a class="floating-line" href="https://line.me/R/ti/p/@glg3590u" target="_blank" rel="noopener" aria-label="加入 DC手遊代儲 LINE">LINE</a>
+
+    <footer class="site-footer">
+      <strong>陳龍龍工作室</strong>
+      <span>客服與訂單通知由 DC手遊代儲官方 LINE 提供</span>
+    </footer>
+
+    <div class="terms-modal" id="termsModal" hidden>
+      <div class="terms-backdrop" data-close-terms></div>
+      <section class="terms-dialog" role="dialog" aria-modal="true" aria-labelledby="termsDialogTitle">
+        <div class="terms-dialog-head">
+          <div>
+            <p class="eyebrow">下單前必讀</p>
+            <h2 id="termsDialogTitle">購買須知</h2>
+          </div>
+          <button class="terms-close" type="button" data-close-terms aria-label="關閉購買須知">×</button>
+        </div>
+
+        <div class="terms-content" id="termsContent" tabindex="0">
+          <p class="terms-lead">請完整閱讀以下內容。滑到最下方後，才能按下「我已閱讀並同意」。</p>
+          <ol>
+            <li>上號代儲期間，請買家關閉遊戲且勿強制登入遊戲，以避免扣款失敗。請等待工作人員通知儲值完畢後再上線；若因買家於代儲期間登入而造成儲值失敗，相關後果由買家自行承擔。</li>
+            <li>代儲服務開始執行或交易完成後，不得任意取消交易或要求退款；但法律另有強制規定者，不在此限。</li>
+            <li>代儲服務完成後，請買家務必立即更改密碼，以維護帳號安全並避免非必要誤會。</li>
+            <li>若遊戲官方禁止第三方代儲行為，買家仍選擇委託本店代儲，後續若帳號遭遊戲官方限制、停權或其他處分，本店不負相關賠償責任；但因本店故意或重大過失所致者，不在此限。</li>
+            <li>如遇代儲後點數遭扣回，請提供完整截圖並向遊戲官方確認遭退款的交易明細。經雙方核實後，依實際情況進入補單程序。</li>
+          </ol>
+          <div class="terms-note">
+            <strong>服務性質說明</strong>
+            <p>本服務係依買家指示代為處理遊戲儲值並提供相關勞務。買家送出訂單，即表示已閱讀、理解並同意本購買須知。</p>
+          </div>
+          <p class="terms-minor">未滿 18 歲者，必須先取得法定代理人同意後才能下單。若無法確認已取得同意，請勿送出訂單。</p>
+        </div>
+
+        <div class="terms-dialog-actions">
+          <small id="termsScrollHint">請繼續向下閱讀</small>
+          <button class="submit-btn terms-accept-button" id="acceptTermsButton" type="button" disabled>我已閱讀並同意</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="order-success-modal" id="orderSuccessModal" hidden>
+      <div class="order-success-backdrop"></div>
+      <section class="order-success-dialog" role="dialog" aria-modal="true" aria-labelledby="orderSuccessTitle">
+        <div class="success-check" aria-hidden="true">✓</div>
+        <p class="eyebrow">Order Submitted</p>
+        <h2 id="orderSuccessTitle">訂單已送出</h2>
+        <p class="success-lead">我們已收到你的訂單，請不要重複送單。</p>
+
+        <div class="success-order-info">
+          <span>訂單編號</span>
+          <strong id="successOrderId"></strong>
+          <span>訂單金額</span>
+          <strong id="successOrderTotal"></strong>
+        </div>
+
+        <div class="success-payment-info">
+          <span>付款方式</span>
+          <strong id="successPaymentMethod"></strong>
+          <p id="successPaymentInstruction"></p>
+        </div>
+
+        <p class="success-line-status" id="successLineStatus">官方 LINE 正在傳送訂單通知。</p>
+        <div class="success-actions">
+          <button class="secondary-button" id="copySuccessOrderButton" type="button">複製訂單與付款資料</button>
+          <button class="submit-btn" id="closeSuccessButton" type="button">我知道了</button>
+        </div>
+      </section>
+    </div>
+
+    <script defer src="app.js?v=20260701-speed-login-order-v1"></script>
+  </body>
+</html>
