@@ -1,4 +1,4 @@
-const ADMIN_CACHE = "cll-admin-pwa-v3";
+const ADMIN_CACHE = "cll-admin-pwa-v4";
 const ADMIN_SHELL = [
   "/admin.html",
   "/admin.css?v=20260702-admin-v3",
@@ -6,6 +6,14 @@ const ADMIN_SHELL = [
   "/manifest.webmanifest",
   "/assets/dragon-premium-hero.webp"
 ];
+
+function isAdminAsset(url) {
+  return url.pathname === "/admin.html"
+    || url.pathname === "/admin.css"
+    || url.pathname === "/admin.js"
+    || url.pathname === "/manifest.webmanifest"
+    || url.pathname === "/assets/dragon-premium-hero.webp";
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -32,15 +40,20 @@ self.addEventListener("fetch", (event) => {
   if (url.hostname.includes("script.google.com")) return;
   if (event.request.method !== "GET") return;
 
+  if (!isAdminAsset(url)) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type === "opaque") return response;
+    fetch(event.request).then((response) => {
+      if (response && response.status === 200 && response.type !== "opaque") {
         const copy = response.clone();
         caches.open(ADMIN_CACHE).then((cache) => cache.put(event.request, copy));
-        return response;
-      });
+      }
+      return response;
+    }).catch(() => {
+      return caches.match(event.request);
     })
   );
 });
