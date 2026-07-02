@@ -8,6 +8,13 @@
 - `03_後端程式/`：Google Apps Script 後端程式。
 - `04_LINE圖文選單/`：LINE 圖文選單圖片素材。
 
+## 手機訂單後台 PWA
+
+- 後台入口：`/admin.html`
+- 前台檔案：`admin.html`、`admin.css`、`admin.js`、`manifest.webmanifest`、`sw.js`
+- 後台密碼不放在前端，請在 Apps Script Script Properties 設定 `ADMIN_PASSWORD_SHA256`。
+- Discord Webhook 不放在前端，沿用 Apps Script Script Properties 的 Discord webhook 設定。
+
 ## 不放進 Git 的資料
 
 以下內容不要提交到 GitHub：

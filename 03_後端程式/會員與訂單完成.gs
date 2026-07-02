@@ -9,7 +9,7 @@
  * 4. LINE 失敗只記錄，不會刪除已建立的訂單
  */
 
-const WORKFLOW_VERSION = "2026-07-01-order-established-workflow-v8-speed";
+const WORKFLOW_VERSION = "2026-07-02-admin-pwa-v1";
 const WORKFLOW_ORDER_STATUS_DEFAULT = "訂單成立";
 const WORKFLOW_SETTINGS_SHEET_NAME = "系統設定";
 const WORKFLOW_PAYMENT_SETTINGS_GAME_ID = "payment-settings";
@@ -180,6 +180,9 @@ const MEMBERSHIP_LEVEL_SETTING_KEYS = [
 const PENDING_NOTIFICATION_PREFIX = "PENDING_ORDER_NOTIFICATION_";
 const PRODUCT_CATALOG_CACHE_KEY = "CLL_PRODUCT_CATALOG_V2";
 const LINE_MEMBER_CACHE_PREFIX = "CLL_LINE_MEMBER_";
+const ADMIN_SESSION_CACHE_PREFIX = "CLL_ADMIN_SESSION_";
+const ADMIN_SESSION_TTL_SECONDS = 6 * 60 * 60;
+const ADMIN_ALLOWED_ORDER_STATUSES = ["訂單成立", "已完成", "已取消"];
 const DISCORD_WEBHOOK_PROPERTY_KEYS = {
   new_order: "DISCORD_WEBHOOK_NEW_ORDER",
   payment_review: "DISCORD_WEBHOOK_PAYMENT_REVIEW",
@@ -304,6 +307,10 @@ const WORKFLOW_PAYMENT_GUIDANCE = {
 function doGet(e) {
   const params = (e && e.parameter) || {};
 
+  if (isAdminApiAction_(params.action)) {
+    return adminApiResponse_(params);
+  }
+
   if (params.action === "member") {
     return memberProfileResponse_(params);
   }
@@ -358,6 +365,307 @@ function doGet(e) {
     lineMode: isLineMessagingConfigured_() ? "configured" : "not_configured",
     loginMode: isLineLoginConfigured_() ? "configured" : "not_configured"
   });
+}
+
+function isAdminApiAction_(action) {
+  return [
+    "adminLogin",
+    "listOrders",
+    "updateOrderStatus",
+    "sendDiscordStatusNotify"
+  ].indexOf(String(action || "")) >= 0;
+}
+
+function adminApiResponse_(params) {
+  const safeParams = params || {};
+  try {
+    const data = parseAdminPayload_(safeParams.payload);
+    let result = null;
+    if (safeParams.action === "adminLogin") {
+      result = adminLogin_(data);
+    } else if (safeParams.action === "listOrders") {
+      result = adminListOrders_(data);
+    } else if (safeParams.action === "updateOrderStatus") {
+      result = adminUpdateOrderStatus_(data);
+    } else if (safeParams.action === "sendDiscordStatusNotify") {
+      result = adminSendDiscordStatusNotify_(data);
+    } else {
+      throw createAdminError_("ADMIN_ACTION_UNKNOWN", "未知的後台操作。");
+    }
+    return jsonpResponse_(safeParams.callback, result);
+  } catch (error) {
+    return jsonpResponse_(safeParams.callback, {
+      ok: false,
+      error: error.code || "ADMIN_API_FAILED",
+      message: getSafeErrorMessage_(error)
+    });
+  }
+}
+
+function parseAdminPayload_(payloadText) {
+  if (!payloadText) return {};
+  try {
+    return JSON.parse(String(payloadText || "{}"));
+  } catch (error) {
+    throw createAdminError_("ADMIN_PAYLOAD_INVALID", "後台資料格式錯誤。");
+  }
+}
+
+function createAdminError_(code, message) {
+  const error = new Error(message || code || "後台操作失敗。");
+  error.code = code || "ADMIN_ERROR";
+  return error;
+}
+
+function sha256Hex_(value) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(value || ""),
+    Utilities.Charset.UTF_8
+  );
+  return digest.map(function (item) {
+    return ("0" + ((item + 256) % 256).toString(16)).slice(-2);
+  }).join("");
+}
+
+function getAdminPasswordHash_() {
+  const configuredHash = String(getScriptProperty_("ADMIN_PASSWORD_SHA256") || "").trim().toLowerCase();
+  if (/^[a-f0-9]{64}$/.test(configuredHash)) return configuredHash;
+
+  const plainPassword = String(getScriptProperty_("ADMIN_PASSWORD") || "").trim();
+  return plainPassword ? sha256Hex_(plainPassword) : "";
+}
+
+function adminLogin_(data) {
+  const expectedHash = getAdminPasswordHash_();
+  if (!expectedHash) {
+    throw createAdminError_(
+      "ADMIN_PASSWORD_NOT_CONFIGURED",
+      "後台密碼尚未設定，請先在 Apps Script Script Properties 新增 ADMIN_PASSWORD_SHA256。"
+    );
+  }
+
+  const inputHash = String((data || {}).passwordHash || "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(inputHash) || inputHash !== expectedHash) {
+    throw createAdminError_("ADMIN_LOGIN_FAILED", "後台密碼錯誤。");
+  }
+
+  const token = sha256Hex_(Utilities.getUuid() + ":" + new Date().getTime());
+  CacheService.getScriptCache().put(
+    ADMIN_SESSION_CACHE_PREFIX + token,
+    JSON.stringify({ createdAt: new Date().toISOString() }),
+    ADMIN_SESSION_TTL_SECONDS
+  );
+  return {
+    ok: true,
+    token: token,
+    expiresInSeconds: ADMIN_SESSION_TTL_SECONDS
+  };
+}
+
+function assertAdminSession_(token) {
+  const safeToken = String(token || "").trim();
+  if (!/^[a-f0-9]{64}$/.test(safeToken)) {
+    throw createAdminError_("ADMIN_UNAUTHORIZED", "請先登入後台。");
+  }
+
+  const cache = CacheService.getScriptCache();
+  const key = ADMIN_SESSION_CACHE_PREFIX + safeToken;
+  const session = cache.get(key);
+  if (!session) {
+    throw createAdminError_("ADMIN_UNAUTHORIZED", "登入已過期，請重新登入。");
+  }
+  cache.put(key, session, ADMIN_SESSION_TTL_SECONDS);
+  return true;
+}
+
+function normalizeAdminOrderStatus_(value) {
+  const status = String(value || "").trim();
+  if (status === "已完成" || status === "已取消") return status;
+  return "訂單成立";
+}
+
+function normalizeAdminStatusFilter_(value) {
+  const status = String(value || "").trim();
+  if (status === "全部") return "全部";
+  return normalizeAdminOrderStatus_(status);
+}
+
+function adminListOrders_(data) {
+  assertAdminSession_((data || {}).token);
+  const statusFilter = normalizeAdminStatusFilter_((data || {}).status || "全部");
+  const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = spreadsheet.getSheetByName(SHEET_NAME) || getOrderSheet_();
+  ensureOrderWorkflowColumns_(sheet);
+
+  const result = {
+    "訂單成立": 0,
+    "已完成": 0,
+    "已取消": 0,
+    "全部": 0
+  };
+  const orders = [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return { ok: true, orders: orders, counts: result };
+  }
+
+  const width = Math.max(ORDER_FEATURE_LAST_COLUMN, sheet.getLastColumn());
+  const rows = sheet.getRange(2, 1, lastRow - 1, width).getValues();
+  rows.forEach(function (row, index) {
+    const order = buildAdminOrderFromRow_(row, index + 2);
+    if (!order.orderId) return;
+    const normalizedStatus = normalizeAdminOrderStatus_(order.status);
+    result[normalizedStatus] += 1;
+    result["全部"] += 1;
+    if (statusFilter === "全部" || normalizedStatus === statusFilter) {
+      orders.push(order);
+    }
+  });
+
+  orders.sort(function (a, b) {
+    return Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
+  });
+
+  return {
+    ok: true,
+    orders: orders.slice(0, 300),
+    counts: result
+  };
+}
+
+function buildAdminOrderFromRow_(row, rowNumber) {
+  const notes = String(row[15] || "").trim();
+  const rawOrderStatus = String(row[ORDER_FEATURE_STATUS_COLUMN - 1] || "").trim();
+  const order = {
+    rowNumber: rowNumber,
+    orderedAt: row[0] || "",
+    orderedAtText: formatAdminDate_(row[0]),
+    orderId: String(row[1] || "").trim(),
+    sourceName: String(row[2] || "").trim(),
+    customerLine: String(row[3] || "").trim(),
+    gameName: String(row[4] || "").trim(),
+    productName: String(row[5] || "").trim(),
+    quantity: Number(row[6] || 1),
+    unitPrice: Number(row[7] || 0),
+    total: Number(row[ORDER_FEATURE_TOTAL_COLUMN - 1] || 0),
+    paymentMethod: String(row[ORDER_FEATURE_PAYMENT_METHOD_COLUMN - 1] || "").trim(),
+    uid: String(row[10] || "").trim(),
+    serverName: String(row[11] || "").trim(),
+    status: normalizeAdminOrderStatus_(rawOrderStatus),
+    rawStatus: rawOrderStatus,
+    lineVerified: String(row[13] || "").trim(),
+    notes: notes,
+    playerName: extractPlayerNameText_(notes),
+    loginInfo: extractGameLoginInfoText_(notes)
+  };
+  const identity = getOrderPlayerIdentity_({
+    playerId: order.uid,
+    playerName: order.playerName,
+    notes: notes
+  });
+  order.uid = identity.uid || order.uid;
+  order.playerName = identity.playerName || order.playerName;
+  return order;
+}
+
+function formatAdminDate_(value) {
+  if (!value) return "";
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return Utilities.formatDate(date, "Asia/Taipei", "yyyy/MM/dd HH:mm");
+  } catch (error) {
+    return String(value);
+  }
+}
+
+function adminUpdateOrderStatus_(data) {
+  assertAdminSession_((data || {}).token);
+  const orderId = cleanOrderId_((data || {}).orderId);
+  const status = normalizeAdminOrderStatus_((data || {}).status);
+  if (!orderId) throw createAdminError_("ADMIN_ORDER_ID_REQUIRED", "缺少訂單編號。");
+  if (ADMIN_ALLOWED_ORDER_STATUSES.indexOf(status) < 0) {
+    throw createAdminError_("ADMIN_STATUS_INVALID", "訂單狀態不允許。");
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+    const sheet = spreadsheet.getSheetByName(SHEET_NAME) || getOrderSheet_();
+    ensureOrderWorkflowColumns_(sheet);
+    const row = findOrderRowById_(sheet, orderId);
+    if (row <= 1) throw createAdminError_("ADMIN_ORDER_NOT_FOUND", "找不到這筆訂單。");
+
+    if (status === "已完成") {
+      finalizeOrderRow_(sheet, row);
+    } else {
+      sheet.getRange(row, ORDER_FEATURE_STATUS_COLUMN).setValue(status);
+      sheet.getRange(row, ORDER_FEATURE_COLUMNS.completedCheckbox).setValue(false);
+      if (status === "已取消") {
+        sheet.getRange(row, ORDER_FEATURE_COLUMNS.settlementState).setValue("已取消");
+      } else {
+        sheet.getRange(row, ORDER_FEATURE_COLUMNS.settlementState).clearContent();
+      }
+
+      const lineUserId = String(
+        sheet.getRange(row, ORDER_FEATURE_LINE_USER_ID_COLUMN).getValue() || ""
+      ).trim();
+      if (lineUserId) refreshMemberSummaryForUser_(lineUserId, spreadsheet);
+      sendDiscordStatusNotify_(sheet, row, status, "PWA 後台將訂單狀態改為「" + status + "」");
+    }
+
+    SpreadsheetApp.flush();
+    const values = sheet.getRange(row, 1, 1, Math.max(ORDER_FEATURE_LAST_COLUMN, sheet.getLastColumn())).getValues()[0];
+    return {
+      ok: true,
+      order: buildAdminOrderFromRow_(values, row)
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function adminSendDiscordStatusNotify_(data) {
+  assertAdminSession_((data || {}).token);
+  const orderId = cleanOrderId_((data || {}).orderId);
+  if (!orderId) throw createAdminError_("ADMIN_ORDER_ID_REQUIRED", "缺少訂單編號。");
+
+  const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = spreadsheet.getSheetByName(SHEET_NAME) || getOrderSheet_();
+  ensureOrderWorkflowColumns_(sheet);
+  const row = findOrderRowById_(sheet, orderId);
+  if (row <= 1) throw createAdminError_("ADMIN_ORDER_NOT_FOUND", "找不到這筆訂單。");
+
+  const status = normalizeAdminOrderStatus_((data || {}).status || sheet.getRange(row, ORDER_FEATURE_STATUS_COLUMN).getValue());
+  const notify = sendDiscordStatusNotify_(sheet, row, status, "PWA 後台重新發送狀態通知：「" + status + "」");
+  return {
+    ok: Boolean(notify.ok),
+    message: notify.message || "",
+    duplicate: Boolean(notify.duplicate)
+  };
+}
+
+function sendDiscordStatusNotify_(sheet, row, status, detail) {
+  const context = getDiscordOrderContextFromRow_(sheet, row);
+  const normalizedStatus = normalizeAdminOrderStatus_(status);
+  let channelType = "payment_review";
+  if (normalizedStatus === "已取消") channelType = "anomaly";
+  if (normalizedStatus === "已完成") channelType = "completed";
+
+  return notifyDiscordOrderEvent_(
+    sheet,
+    row,
+    channelType,
+    "admin_status_" + normalizedStatus,
+    context.order,
+    context.member,
+    {
+      paymentStatus: normalizedStatus,
+      detail: detail || ("訂單狀態改為「" + normalizedStatus + "」")
+    }
+  );
 }
 
 function createOrderWithNotifications_(data) {

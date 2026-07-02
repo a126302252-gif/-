@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101514" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>訂單後台｜陳龍龍工作室</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/assets/dragon-premium-hero.webp" />
+    <link rel="stylesheet" href="/admin.css?v=20260702-admin-v1" />
+    <script defer src="/admin.js?v=20260702-admin-v1"></script>
+  </head>
+  <body>
+    <main class="admin-shell">
+      <section class="login-view" id="loginView">
+        <div class="brand-block">
+          <span class="brand-mark">龍</span>
+          <div>
+            <h1>陳龍龍工作室</h1>
+            <p>手機訂單後台</p>
+          </div>
+        </div>
+
+        <form class="login-card" id="loginForm">
+          <label for="adminPassword">後台密碼</label>
+          <div class="password-row">
+            <input id="adminPassword" type="password" autocomplete="current-password" required />
+            <button class="icon-button" id="togglePasswordButton" type="button" aria-label="顯示密碼">看</button>
+          </div>
+          <button class="primary-button" id="loginButton" type="submit">登入後台</button>
+          <p class="status-message" id="loginMessage"></p>
+        </form>
+      </section>
+
+      <section class="dashboard-view" id="dashboardView" hidden>
+        <header class="app-header">
+          <div>
+            <p class="eyebrow">Order Admin</p>
+            <h1>訂單管理</h1>
+          </div>
+          <button class="ghost-button" id="logoutButton" type="button">登出</button>
+        </header>
+
+        <div class="toolbar">
+          <label class="search-box" for="orderSearch">
+            <span>搜尋</span>
+            <input id="orderSearch" type="search" placeholder="訂單編號 / UID / 玩家名稱" autocomplete="off" />
+          </label>
+          <button class="refresh-button" id="refreshButton" type="button">更新</button>
+        </div>
+
+        <nav class="status-tabs" aria-label="訂單狀態">
+          <button class="status-tab active" type="button" data-status="訂單成立">訂單成立 <span id="countCreated">0</span></button>
+          <button class="status-tab" type="button" data-status="已完成">已完成 <span id="countCompleted">0</span></button>
+          <button class="status-tab" type="button" data-status="已取消">已取消 <span id="countCancelled">0</span></button>
+          <button class="status-tab" type="button" data-status="全部">全部 <span id="countAll">0</span></button>
+        </nav>
+
+        <p class="status-message" id="dashboardMessage"></p>
+        <section class="order-list" id="orderList" aria-live="polite"></section>
+      </section>
+    </main>
+
+    <dialog class="order-dialog" id="orderDialog">
+      <article>
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow">Order Detail</p>
+            <h2 id="detailTitle">訂單詳情</h2>
+          </div>
+          <button class="icon-button" id="closeDialogButton" type="button" aria-label="關閉">關</button>
+        </header>
+
+        <section class="detail-grid" id="detailGrid"></section>
+
+        <footer class="dialog-actions">
+          <button class="danger-button" id="cancelOrderButton" type="button">標記已取消</button>
+          <button class="primary-button" id="completeOrderButton" type="button">標記已完成</button>
+        </footer>
+      </article>
+    </dialog>
+  </body>
+</html>

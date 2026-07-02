@@ -1,6 +1,4 @@
-/admin.html / 302!
-/admin / 302!
-/admin.js / 302!
+/admin /admin.html 200
 /order /index.html 200
 /member /index.html 200
 /prices /index.html 200

@@ -1,0 +1,19 @@
+{
+  "name": "陳龍龍工作室訂單後台",
+  "short_name": "訂單後台",
+  "description": "陳龍龍工作室手機版訂單管理後台",
+  "start_url": "/admin.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1211",
+  "theme_color": "#101514",
+  "icons": [
+    {
+      "src": "/assets/dragon-premium-hero.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ]
+}
