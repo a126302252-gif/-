@@ -12,6 +12,8 @@
 
 - 後台入口：`/admin.html`
 - 前台檔案：`admin.html`、`admin.css`、`admin.js`、`manifest.webmanifest`、`sw.js`
+- 訂單狀態：`訂單成立`、`已付款`、`已完成`、`已取消`、`全部`
+- `已付款` 是內部後台狀態，不會發客人 LINE，也不會計入會員累積消費；只有 `已完成` 才會計入會員累積並發完成通知。
 - 後台密碼不放在前端，請在 Apps Script Script Properties 設定 `ADMIN_PASSWORD_SHA256`。
 - Discord Webhook 不放在前端，沿用 Apps Script Script Properties 的 Discord webhook 設定。
 
