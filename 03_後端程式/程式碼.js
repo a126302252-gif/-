@@ -674,22 +674,24 @@ function findProductPlan_(gameId, planId, gameName, productName) {
   const data = getProductData_();
   const requestedGameId = String(gameId || "").trim();
   const requestedPlanId = String(planId || "").trim();
+  const requestedBasePlanId = requestedPlanId.replace(/__\d+$/, "");
   const requestedGameName = String(gameName || "").trim();
   const requestedProductName = String(productName || "").trim();
 
   const game = data.games.find((item) => item.id === requestedGameId)
-    || data.games.find((item) => item.plans.some((plan) => plan.id === requestedPlanId))
+    || data.games.find((item) => item.plans.some((plan) => plan.id === requestedPlanId || plan.sourcePlanId === requestedBasePlanId))
     || data.games.find((item) => item.name === requestedGameName);
   if (!game) return null;
 
-  const plan = game.plans.find((item) => item.id === requestedPlanId)
-    || game.plans.find((item) => item.name === requestedProductName);
+  const plan = game.plans.find((item) => item.name === requestedProductName)
+    || game.plans.find((item) => item.id === requestedPlanId)
+    || game.plans.find((item) => item.sourcePlanId === requestedBasePlanId);
   if (!plan) return null;
 
   return {
     gameId: game.id,
     gameName: game.name,
-    planId: plan.id,
+    planId: plan.sourcePlanId || plan.id,
     planName: plan.name,
     price: Number(plan.price || 0)
   };
@@ -746,8 +748,10 @@ function getProductData_() {
       };
     }
 
+    const duplicateCount = gameMap[gameId].plans.filter((plan) => plan.sourcePlanId === planId || plan.id === planId).length;
     gameMap[gameId].plans.push({
-      id: planId,
+      id: duplicateCount ? `${planId}__${duplicateCount + 1}` : planId,
+      sourcePlanId: planId,
       name: planName,
       price,
       eta,

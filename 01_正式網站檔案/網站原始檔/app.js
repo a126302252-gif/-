@@ -179,7 +179,7 @@ function normalizeCatalog(source) {
     .filter((game) => game && game.active !== false && game.id !== PAYMENT_SETTINGS_GAME_ID)
     .map((game) => ({
       ...game,
-      plans: Array.isArray(game.plans) ? game.plans.filter((plan) => plan && plan.active !== false) : []
+      plans: normalizePlanEntries(Array.isArray(game.plans) ? game.plans.filter((plan) => plan && plan.active !== false) : [])
     }))
     .filter((game) => game.plans.length);
 
@@ -189,6 +189,50 @@ function normalizeCatalog(source) {
       : ["所有遊戲"],
     games: organizeStoreGames(normalizedGames)
   };
+}
+
+function normalizePlanEntries(plans) {
+  const seen = {};
+  return plans.map((plan, index) => {
+    const sourcePlanId = String(plan?.sourcePlanId || plan?.id || `plan-${index + 1}`).trim();
+    const baseId = sourcePlanId || `plan-${index + 1}`;
+    const key = baseId.toLowerCase();
+    seen[key] = (seen[key] || 0) + 1;
+    return {
+      ...plan,
+      id: seen[key] === 1 ? baseId : `${baseId}__${seen[key]}`,
+      sourcePlanId: baseId
+    };
+  });
+}
+
+function getPlanBundleInfo(plan) {
+  const rawName = String(plan?.name || "").replace(/\s+/g, " ").trim();
+  const match = rawName.match(/^(.*?)(\d[\d,]*)\s*[*xX×]\s*(\d+)\s*([^\d]*)$/);
+  if (!match) return null;
+  const count = Number(match[3]);
+  if (!Number.isFinite(count) || count <= 1) return null;
+  const prefix = String(match[1] || "").trim();
+  const amount = String(match[2] || "").trim();
+  const unit = String(match[4] || "").trim();
+  const baseName = [prefix, amount, unit].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return { count, baseName };
+}
+
+function formatPlanDisplayName(plan) {
+  const rawName = String(plan?.name || "").trim();
+  const bundle = getPlanBundleInfo(plan);
+  if (!bundle) return rawName;
+  return `${bundle.baseName} ×${bundle.count}單優惠`;
+}
+
+function getPlanSupportText(plan, fallback = "確認訂單後處理") {
+  const bundle = getPlanBundleInfo(plan);
+  const pieces = [];
+  if (plan?.note) pieces.push(plan.note);
+  if (plan?.eta) pieces.push(plan.eta);
+  if (bundle) pieces.push(`1單 = ${bundle.baseName}`);
+  return pieces.join("｜") || fallback;
 }
 
 function organizeStoreGames(sourceGames) {
@@ -973,7 +1017,7 @@ function renderSelects() {
 function renderPlanSelect() {
   const game = getGame();
   planSelect.innerHTML = (game?.plans || [])
-    .map((plan) => `<option value="${escapeHtml(plan.id)}">${escapeHtml(plan.name)} - ${currency.format(plan.price)}</option>`)
+    .map((plan) => `<option value="${escapeHtml(plan.id)}">${escapeHtml(formatPlanDisplayName(plan))} - ${currency.format(plan.price)}</option>`)
     .join("");
   if (!game?.plans.some((plan) => plan.id === selectedPlanId)) {
     selectedPlanId = game?.plans[0]?.id || "";
@@ -986,7 +1030,7 @@ function updatePlanPickerSelection() {
   if (!planPickerButton || !planPickerMenu) return;
   const selectedPlan = getPlan();
   planPickerButton.innerHTML = `
-    <span>${escapeHtml(selectedPlan?.name || "請選擇方案")}</span>
+    <span>${escapeHtml(selectedPlan ? formatPlanDisplayName(selectedPlan) : "請選擇方案")}</span>
     <strong>${escapeHtml(selectedPlan ? currency.format(selectedPlan.price) : "")}</strong>
   `;
   planPickerMenu.querySelectorAll(".plan-picker-option").forEach((button) => {
@@ -1012,9 +1056,9 @@ function renderPlanPicker(game = getGame()) {
   planPickerButton.setAttribute("aria-expanded", "false");
   planPickerMenu.innerHTML = plans.map((plan) => `
     <button class="plan-picker-option" type="button" role="option" data-plan-id="${escapeHtml(plan.id)}">
-      <span>${escapeHtml(plan.name)}</span>
+      <span>${escapeHtml(formatPlanDisplayName(plan))}</span>
       <strong>${escapeHtml(currency.format(plan.price))}</strong>
-      ${plan.eta ? `<small>${escapeHtml(plan.eta)}</small>` : ""}
+      <small>${escapeHtml(getPlanSupportText(plan))}</small>
     </button>
   `).join("");
   updatePlanPickerSelection();
@@ -1226,8 +1270,8 @@ function renderPriceCard(game, plan, label) {
       <article class="price-card ${plan.id === selectedPlanId ? "selected" : ""}" data-game-id="${escapeHtml(game.id)}" data-plan-id="${escapeHtml(plan.id)}">
         <div>
           <span>${escapeHtml(label)}</span>
-          <h3>${escapeHtml(plan.name)}</h3>
-          <small>${escapeHtml(plan.note || plan.eta || "確認訂單後處理")}</small>
+          <h3>${escapeHtml(formatPlanDisplayName(plan))}</h3>
+          <small>${escapeHtml(getPlanSupportText(plan))}</small>
         </div>
         <strong>${currency.format(plan.price)}</strong>
         <button type="button" class="select-plan" data-game-id="${escapeHtml(game.id)}" data-plan-id="${escapeHtml(plan.id)}">選擇並下單</button>
@@ -1243,7 +1287,7 @@ function updateSummary() {
   const qty = Math.max(1, Number(quantity.value || 1));
   const pricing = getOrderPricing(plan, qty);
   summaryGame.textContent = game.name;
-  summaryPlan.textContent = plan.name;
+  summaryPlan.textContent = formatPlanDisplayName(plan);
   summaryEta.textContent = plan.eta;
   summaryTotal.textContent = currency.format(pricing.payableTotal);
   if (summaryOriginalTotal) summaryOriginalTotal.textContent = currency.format(pricing.originalTotal);
@@ -1688,7 +1732,7 @@ orderForm.addEventListener("submit", async (event) => {
     orderId: `${ORDER_PREFIX}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
     studioName: STUDIO_BRAND_NAME,
     gameId: game.id,
-    planId: plan.id,
+    planId: plan.sourcePlanId || plan.id,
     gameName: game.name,
     productName: plan.name,
     quantity: qty,

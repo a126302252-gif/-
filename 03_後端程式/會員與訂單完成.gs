@@ -670,7 +670,9 @@ function buildOrderDisplayFields_(order) {
     notes: safeOrder.notes
   });
   const quantity = Number(safeOrder.quantity || 1);
-  const productName = String(safeOrder.productName || "").trim();
+  const rawProductName = String(safeOrder.productName || "").trim();
+  const productName = formatPlanDisplayName_(rawProductName);
+  const productBundle = getPlanBundleInfo_(rawProductName);
   const amount = Number(safeOrder.total || safeOrder.amount || 0);
   const status = normalizeAdminOrderStatus_(
     safeOrder.status || safeOrder.orderStatus || safeOrder.rawStatus
@@ -684,7 +686,9 @@ function buildOrderDisplayFields_(order) {
     uid: identity.uid || "",
     playerName: identity.playerName || "",
     productName: productName,
-    productWithQuantity: productName ? productName + " ×" + quantity : "",
+    productWithQuantity: productName
+      ? (productBundle && quantity === 1 ? productName : productName + " ×" + quantity)
+      : "",
     quantity: quantity,
     amount: amount,
     amountText: "NT$ " + formatMoney_(amount),
@@ -696,6 +700,26 @@ function buildOrderDisplayFields_(order) {
     hasLoginInfo: Boolean(login.method || login.account || login.password),
     systemNotes: String(safeOrder.notes || "").trim().slice(0, 1500)
   };
+}
+
+function getPlanBundleInfo_(name) {
+  const rawName = String(name || "").replace(/\s+/g, " ").trim();
+  const match = rawName.match(/^(.*?)(\d[\d,]*)\s*[*xX×]\s*(\d+)\s*([^\d]*)$/);
+  if (!match) return null;
+  const count = Number(match[3]);
+  if (!Number.isFinite(count) || count <= 1) return null;
+  const prefix = String(match[1] || "").trim();
+  const amount = String(match[2] || "").trim();
+  const unit = String(match[4] || "").trim();
+  const baseName = [prefix, amount, unit].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return { count: count, baseName: baseName };
+}
+
+function formatPlanDisplayName_(name) {
+  const rawName = String(name || "").trim();
+  const bundle = getPlanBundleInfo_(rawName);
+  if (!bundle) return rawName;
+  return bundle.baseName + " ×" + bundle.count + "單優惠";
 }
 
 function formatAdminDate_(value) {
@@ -2074,6 +2098,7 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
   const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues();
   const requestedGameId = String(gameId || "").trim();
   const requestedPlanId = String(planId || "").trim();
+  const requestedBasePlanId = requestedPlanId.replace(/__\d+$/, "");
   const requestedGameName = String(gameName || "").trim();
   const requestedProductName = String(productName || "").trim();
 
@@ -2102,20 +2127,22 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
   }
 
   return activePlans.find(function (item) {
-    return item.planId === requestedPlanId && (
+    return item.gameId === requestedGameId && item.planName === requestedProductName;
+  }) || activePlans.find(function (item) {
+    return item.gameName === requestedGameName && item.planName === requestedProductName;
+  }) || activePlans.find(function (item) {
+    return (item.planId === requestedPlanId || item.planId === requestedBasePlanId) && (
       item.gameId === requestedGameId
       || !requestedGameId
       || requestedGameId === "delta-uid"
       || requestedGameId === "delta-login"
     );
   }) || activePlans.find(function (item) {
-    return item.gameId === requestedGameId && item.planName === requestedProductName;
-  }) || activePlans.find(function (item) {
     return item.gameName === requestedGameName && item.planId === requestedPlanId;
   }) || activePlans.find(function (item) {
-    return item.gameName === requestedGameName && item.planName === requestedProductName;
-  }) || activePlans.find(function (item) {
     return item.planId === requestedPlanId;
+  }) || activePlans.find(function (item) {
+    return item.planId === requestedBasePlanId;
   }) || null;
 }
 
