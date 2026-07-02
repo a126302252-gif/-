@@ -6,11 +6,11 @@ const LINE_SOURCE_ACCOUNT = LINE_CHANNEL.sourceAccount || LINE_CHANNEL.key || "d
 const LINE_SOURCE_NAME = LINE_CHANNEL.sourceName || "小號 DC手遊代儲";
 const ORDER_PREFIX = LINE_CHANNEL.orderPrefix || window.ORDER_PREFIX || "CLL";
 const ORDER_SUBMIT_TIMEOUT_MS = 25000;
-const CATALOG_SYNC_TIMEOUT_MS = 6500;
+const CATALOG_SYNC_TIMEOUT_MS = 4500;
 const LINE_MEMBER_CACHE_KEY = `cll_line_member_${LINE_SOURCE_ACCOUNT}`;
-const LINE_MEMBER_CACHE_TTL_MS = 30 * 60 * 1000;
+const LINE_MEMBER_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const MEMBER_PROFILE_CACHE_KEY = `cll_member_profile_${LINE_SOURCE_ACCOUNT}`;
-const MEMBER_PROFILE_CACHE_TTL_MS = 10 * 60 * 1000;
+const MEMBER_PROFILE_CACHE_TTL_MS = 30 * 60 * 1000;
 const CATALOG_CACHE_KEY = `cll_catalog_${LINE_SOURCE_ACCOUNT}`;
 const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 const CURRENT_PAGE = document.documentElement.dataset.page || "prices";
@@ -57,6 +57,10 @@ const gameGrid = document.querySelector("#gameGrid");
 const gameSearch = document.querySelector("#gameSearch");
 const gameSelect = document.querySelector("#gameSelect");
 const planSelect = document.querySelector("#planSelect");
+const planField = document.querySelector("#planField");
+const planPicker = document.querySelector("#planPicker");
+const planPickerButton = document.querySelector("#planPickerButton");
+const planPickerMenu = document.querySelector("#planPickerMenu");
 const quantity = document.querySelector("#quantity");
 const serverName = document.querySelector("#serverName");
 const playerId = document.querySelector("#playerId");
@@ -280,25 +284,69 @@ function applyRequestedOrderSelection() {
   return true;
 }
 
-function readCachedCatalog() {
+function getCacheStores() {
+  const stores = [];
   try {
-    const cached = JSON.parse(sessionStorage.getItem(CATALOG_CACHE_KEY) || "null");
-    if (!cached?.data || Date.now() - Number(cached.cachedAt || 0) > CATALOG_CACHE_TTL_MS) return null;
-    return cached.data;
+    if (window.sessionStorage) stores.push(window.sessionStorage);
   } catch (error) {
-    return null;
+    // Some in-app browsers can block storage access.
   }
+  try {
+    if (window.localStorage) stores.push(window.localStorage);
+  } catch (error) {
+    // Some in-app browsers can block storage access.
+  }
+  return stores;
+}
+
+function readCachedPayload(key, ttlMs, validator = () => true) {
+  let best = null;
+  getCacheStores().forEach((store) => {
+    try {
+      const cached = JSON.parse(store.getItem(key) || "null");
+      if (!cached || Date.now() - Number(cached.cachedAt || 0) > ttlMs) return;
+      if (!validator(cached)) return;
+      if (!best || Number(cached.cachedAt || 0) > Number(best.cachedAt || 0)) best = cached;
+    } catch (error) {
+      // Ignore corrupt cache entries.
+    }
+  });
+  return best;
+}
+
+function writeCachedPayload(key, payload) {
+  getCacheStores().forEach((store) => {
+    try {
+      store.setItem(key, JSON.stringify(payload));
+    } catch (error) {
+      // Storage may be full or blocked in embedded browsers.
+    }
+  });
+}
+
+function removeCachedPayload(key) {
+  getCacheStores().forEach((store) => {
+    try {
+      store.removeItem(key);
+    } catch (error) {
+      // Ignore storage cleanup failures.
+    }
+  });
+}
+
+function readCachedCatalog() {
+  return readCachedPayload(
+    CATALOG_CACHE_KEY,
+    CATALOG_CACHE_TTL_MS,
+    (cached) => Boolean(cached?.data)
+  )?.data || null;
 }
 
 function cacheCatalog(nextData) {
-  try {
-    sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({
-      data: nextData,
-      cachedAt: Date.now()
-    }));
-  } catch (error) {
-    // Storage may be unavailable in some in-app browser modes.
-  }
+  writeCachedPayload(CATALOG_CACHE_KEY, {
+    data: nextData,
+    cachedAt: Date.now()
+  });
 }
 
 function loadRemoteCatalog() {
@@ -377,60 +425,42 @@ function hasLineMember() {
 }
 
 function readCachedLineMember() {
-  try {
-    const cached = JSON.parse(sessionStorage.getItem(LINE_MEMBER_CACHE_KEY) || "null");
-    if (!cached || Date.now() - Number(cached.cachedAt || 0) > LINE_MEMBER_CACHE_TTL_MS) return null;
-    if (!cached.userId) return null;
-    return cached;
-  } catch (error) {
-    return null;
-  }
+  return readCachedPayload(
+    LINE_MEMBER_CACHE_KEY,
+    LINE_MEMBER_CACHE_TTL_MS,
+    (cached) => Boolean(cached?.userId)
+  );
 }
 
 function cacheLineMember(member) {
-  try {
-    sessionStorage.setItem(LINE_MEMBER_CACHE_KEY, JSON.stringify({
-      userId: member.userId || "",
-      displayName: member.displayName || "LINE 會員",
-      pictureUrl: member.pictureUrl || "",
-      cachedAt: Date.now()
-    }));
-  } catch (error) {
-    // Storage may be unavailable in some in-app browser modes.
-  }
+  writeCachedPayload(LINE_MEMBER_CACHE_KEY, {
+    userId: member.userId || "",
+    displayName: member.displayName || "LINE 會員",
+    pictureUrl: member.pictureUrl || "",
+    cachedAt: Date.now()
+  });
 }
 
 function readCachedMemberProfile(userId) {
-  try {
-    const cached = JSON.parse(sessionStorage.getItem(MEMBER_PROFILE_CACHE_KEY) || "null");
-    if (!cached?.profile || cached.userId !== userId) return null;
-    if (Date.now() - Number(cached.cachedAt || 0) > MEMBER_PROFILE_CACHE_TTL_MS) return null;
-    return cached.profile;
-  } catch (error) {
-    return null;
-  }
+  return readCachedPayload(
+    MEMBER_PROFILE_CACHE_KEY,
+    MEMBER_PROFILE_CACHE_TTL_MS,
+    (cached) => Boolean(cached?.profile) && cached.userId === userId
+  )?.profile || null;
 }
 
 function cacheMemberProfile(userId, profile) {
   if (!userId || !profile) return;
-  try {
-    sessionStorage.setItem(MEMBER_PROFILE_CACHE_KEY, JSON.stringify({
-      userId,
-      profile,
-      cachedAt: Date.now()
-    }));
-  } catch (error) {
-    // Storage may be unavailable in some in-app browser modes.
-  }
+  writeCachedPayload(MEMBER_PROFILE_CACHE_KEY, {
+    userId,
+    profile,
+    cachedAt: Date.now()
+  });
 }
 
 function clearCachedLineState() {
-  try {
-    sessionStorage.removeItem(LINE_MEMBER_CACHE_KEY);
-    sessionStorage.removeItem(MEMBER_PROFILE_CACHE_KEY);
-  } catch (error) {
-    // Storage may be unavailable in some in-app browser modes.
-  }
+  removeCachedPayload(LINE_MEMBER_CACHE_KEY);
+  removeCachedPayload(MEMBER_PROFILE_CACHE_KEY);
 }
 
 function escapeHtml(value) {
@@ -572,7 +602,7 @@ function loadMemberSummary() {
     const timer = window.setTimeout(() => {
       cleanup();
       resolve(null);
-    }, 15000);
+    }, 8000);
 
     window[callbackName] = (payload) => {
       window.clearTimeout(timer);
@@ -614,6 +644,15 @@ function refreshMemberSummaryInBackground(expectedUserId = "") {
     .catch((error) => {
       console.warn("Member summary refresh failed.", error);
     });
+}
+
+function scheduleMemberSummaryRefresh(expectedUserId = "") {
+  const run = () => refreshMemberSummaryInBackground(expectedUserId);
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(run, { timeout: CURRENT_PAGE === "member" ? 600 : 1200 });
+  } else {
+    window.setTimeout(run, CURRENT_PAGE === "member" ? 80 : 500);
+  }
 }
 
 function showStatus(message, state = "pending") {
@@ -659,7 +698,7 @@ function acceptTerms() {
   showStatus("購買須知已閱讀，請完成年齡與訂單資料確認。", "success");
 }
 
-function waitForLineSdk(timeoutMs = 10000) {
+function waitForLineSdk(timeoutMs = 6500) {
   if (window.liff) return Promise.resolve(true);
 
   const sdkScript = document.querySelector("#lineLiffSdk");
@@ -736,6 +775,9 @@ async function initLineMember() {
     }
     renderLineMemberStatus(lineMember.displayName, "已使用最近登入狀態，可以先填寫訂單。", true);
     showStatus("LINE 會員已登入，可以先填寫訂單。", "success");
+  } else {
+    renderLineMemberStatus("檢查 LINE 會員中", "畫面可先填寫，送出前會確認登入狀態。");
+    showStatus("正在檢查 LINE 登入狀態，可以先填寫訂單資料。", "pending");
   }
 
   if (!LINE_LIFF_ID) {
@@ -746,6 +788,11 @@ async function initLineMember() {
 
   const sdkReady = await waitForLineSdk();
   if (!sdkReady) {
+    if (hadCachedMember) {
+      renderLineMemberStatus(lineMember.displayName, "已使用最近登入狀態；LINE 即時檢查稍後再試。", true);
+      showStatus("LINE 即時檢查較慢，已先使用最近登入狀態。", "success");
+      return;
+    }
     renderLineMemberStatus("LINE 載入失敗", "請從 LINE 官方帳號內重新開啟網站。");
     showStatus("LINE SDK 載入失敗，請重新整理或從官方 LINE 進入。", "error");
     return;
@@ -790,9 +837,14 @@ async function initLineMember() {
       memberProfile = cachedProfile;
       renderMemberSummary(memberProfile);
     }
-    refreshMemberSummaryInBackground(lineMember.userId);
+    scheduleMemberSummaryRefresh(lineMember.userId);
   } catch (error) {
     console.warn("LINE LIFF init failed.", error);
+    if (hadCachedMember) {
+      renderLineMemberStatus(lineMember.displayName, "已使用最近登入狀態；LINE 即時檢查稍後再試。", true);
+      showStatus("LINE 即時檢查較慢，已先使用最近登入狀態。", "success");
+      return;
+    }
     renderLineMemberStatus("LINE 登入暫不可用", "請重新開啟網站或確認 LIFF 設定。");
     showStatus("LINE 登入暫不可用，暫時不能送出訂單。", "error");
   }
@@ -927,6 +979,45 @@ function renderPlanSelect() {
     selectedPlanId = game?.plans[0]?.id || "";
   }
   planSelect.value = selectedPlanId;
+  renderPlanPicker(game);
+}
+
+function updatePlanPickerSelection() {
+  if (!planPickerButton || !planPickerMenu) return;
+  const selectedPlan = getPlan();
+  planPickerButton.innerHTML = `
+    <span>${escapeHtml(selectedPlan?.name || "請選擇方案")}</span>
+    <strong>${escapeHtml(selectedPlan ? currency.format(selectedPlan.price) : "")}</strong>
+  `;
+  planPickerMenu.querySelectorAll(".plan-picker-option").forEach((button) => {
+    const active = button.dataset.planId === selectedPlanId;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+}
+
+function closePlanPicker() {
+  if (!planPicker || !planPickerButton || !planPickerMenu) return;
+  planPicker.classList.remove("open");
+  planPickerButton.setAttribute("aria-expanded", "false");
+  planPickerMenu.hidden = true;
+}
+
+function renderPlanPicker(game = getGame()) {
+  if (!planField || !planPicker || !planPickerButton || !planPickerMenu) return;
+  const plans = game?.plans || [];
+  planField.classList.toggle("enhanced", plans.length > 0);
+  planPicker.hidden = plans.length === 0;
+  planPickerMenu.hidden = true;
+  planPickerButton.setAttribute("aria-expanded", "false");
+  planPickerMenu.innerHTML = plans.map((plan) => `
+    <button class="plan-picker-option" type="button" role="option" data-plan-id="${escapeHtml(plan.id)}">
+      <span>${escapeHtml(plan.name)}</span>
+      <strong>${escapeHtml(currency.format(plan.price))}</strong>
+      ${plan.eta ? `<small>${escapeHtml(plan.eta)}</small>` : ""}
+    </button>
+  `).join("");
+  updatePlanPickerSelection();
 }
 
 function renderDetail() {
@@ -1186,6 +1277,7 @@ function selectPlan(planId, scroll = true) {
   priceList.querySelectorAll(".price-card").forEach((card) => {
     card.classList.toggle("selected", card.dataset.planId === selectedPlanId);
   });
+  updatePlanPickerSelection();
   updateSummary();
   if (scroll) document.querySelector("#order").scrollIntoView({ behavior: getPreferredScrollBehavior(), block: "start" });
 }
@@ -1388,7 +1480,16 @@ async function initApp() {
   // 實際下單金額仍由後端商品表重新核對，遠端資料回來後再無縫更新。
   applyCatalog(readCachedCatalog() || window.STUDIO_DATA);
   renderCatalogView();
-  if (CURRENT_PAGE !== "prices") initLineMember();
+  if (CURRENT_PAGE !== "prices") {
+    const startLineMember = () => initLineMember();
+    if (CURRENT_PAGE === "member") {
+      window.setTimeout(startLineMember, 40);
+    } else if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(startLineMember, { timeout: 500 });
+    } else {
+      window.setTimeout(startLineMember, 160);
+    }
+  }
   if (CURRENT_PAGE === "member") return;
 
   await new Promise((resolve) => {
@@ -1485,6 +1586,26 @@ catalogFilters?.addEventListener("click", (event) => {
 
 gameSelect.addEventListener("change", () => selectGame(gameSelect.value, false));
 planSelect.addEventListener("change", () => selectPlan(planSelect.value, false));
+planPickerButton?.addEventListener("click", () => {
+  if (!planPicker || !planPickerMenu) return;
+  const nextOpen = planPickerMenu.hidden;
+  planPicker.classList.toggle("open", nextOpen);
+  planPickerButton.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+  planPickerMenu.hidden = !nextOpen;
+});
+planPickerMenu?.addEventListener("click", (event) => {
+  const button = event.target.closest(".plan-picker-option");
+  if (!button) return;
+  selectPlan(button.dataset.planId, false);
+  closePlanPicker();
+});
+document.addEventListener("click", (event) => {
+  if (!planPicker || planPicker.contains(event.target)) return;
+  closePlanPicker();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closePlanPicker();
+});
 quantity.addEventListener("input", updateSummary);
 lineLoginButton?.addEventListener("click", loginWithLine);
 memberAreaLoginButton?.addEventListener("click", loginWithLine);

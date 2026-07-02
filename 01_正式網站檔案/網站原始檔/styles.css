@@ -572,6 +572,108 @@ label {
   font-weight: 900;
 }
 
+.plan-field {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  color: #fff2c9;
+  font-weight: 900;
+}
+
+.plan-field.enhanced select {
+  display: none;
+}
+
+.plan-picker {
+  position: relative;
+}
+
+.plan-picker-button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgba(218, 174, 88, .38);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .58);
+  color: #fff5da;
+  text-align: left;
+}
+
+.plan-picker-button::after {
+  content: "⌄";
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.plan-picker-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-picker-button strong {
+  color: var(--ink);
+}
+
+.plan-picker.open .plan-picker-button {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px rgba(233, 191, 105, .12);
+}
+
+.plan-picker-menu {
+  position: absolute;
+  z-index: 24;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-height: min(380px, 56vh);
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid rgba(218, 174, 88, .36);
+  border-radius: 8px;
+  background: #11100e;
+  box-shadow: 0 22px 54px rgba(0, 0, 0, .55);
+}
+
+.plan-picker-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 11px 12px;
+  border: 1px solid rgba(218, 174, 88, .16);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .34);
+  color: #fff2c9;
+  text-align: left;
+}
+
+.plan-picker-option + .plan-picker-option {
+  margin-top: 8px;
+}
+
+.plan-picker-option strong {
+  color: var(--ink);
+}
+
+.plan-picker-option small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plan-picker-option.active,
+.plan-picker-option:hover {
+  border-color: var(--line-strong);
+  background: linear-gradient(180deg, rgba(233, 191, 105, .2), rgba(107, 70, 25, .16));
+}
+
 .form-grid small {
   color: var(--muted);
   font-size: 12px;

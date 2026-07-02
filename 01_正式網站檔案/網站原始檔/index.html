@@ -65,7 +65,7 @@
     <link rel="preconnect" href="https://static.line-scdn.net" crossorigin />
     <link rel="dns-prefetch" href="https://script.google.com" />
     <link rel="preload" as="image" href="assets/dragon-premium-hero.webp" fetchpriority="high" />
-    <link rel="stylesheet" href="styles.css?v=20260702-payment-layout-1" />
+    <link rel="stylesheet" href="styles.css?v=20260702-speed-plan-1" />
     <script defer src="products.js?v=20260702-main-delta-v1"></script>
     <script defer src="line-config.js?v=20260702-main-account-v1"></script>
     <script defer src="payment-config.js?v=20260629-order-success"></script>
@@ -203,10 +203,14 @@
               遊戲
               <select id="gameSelect" required></select>
             </label>
-            <label>
-              方案
+            <div class="plan-field" id="planField">
+              <span>方案</span>
               <select id="planSelect" required></select>
-            </label>
+              <div class="plan-picker" id="planPicker" hidden>
+                <button class="plan-picker-button" id="planPickerButton" type="button" aria-expanded="false" aria-controls="planPickerMenu"></button>
+                <div class="plan-picker-menu" id="planPickerMenu" hidden></div>
+              </div>
+            </div>
             <label>
               數量
               <input id="quantity" type="number" min="1" max="20" value="1" required />
@@ -484,6 +488,6 @@
       </section>
     </div>
 
-    <script defer src="app.js?v=20260702-main-delta-v5"></script>
+    <script defer src="app.js?v=20260702-speed-plan-1"></script>
   </body>
 </html>
