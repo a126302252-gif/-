@@ -704,7 +704,7 @@ function buildOrderDisplayFields_(order) {
 
 function getPlanBundleInfo_(name) {
   const rawName = String(name || "").replace(/\s+/g, " ").trim();
-  const match = rawName.match(/^(.*?)(\d[\d,]*)\s*[*xX×]\s*(\d+)\s*([^\d]*)$/);
+  const match = rawName.match(/^(.*?)(\d[\d,]*)\s*(?:\*|x|X|×)\s*(\d+)\s*([^\d]*)$/);
   if (!match) return null;
   const count = Number(match[3]);
   if (!Number.isFinite(count) || count <= 1) return null;
@@ -888,8 +888,7 @@ function createOrderWithNotifications_(data) {
   const quantity = normalizeQuantity_(data.quantity);
   const paymentAccountKey = normalizePaymentAccountKey_(data.paymentAccountKey);
   const playerName = cleanLineValue_(data.playerName);
-  const originalTotal = product.price * quantity;
-  const membership = getMemberPricingProfile_(spreadsheet, member.userId, originalTotal);
+  const pricing = calculateProductOrderPricing_(spreadsheet, product, quantity, member.userId);
   const accountVerification = getMemberPaymentVerification_(
     spreadsheet,
     member.userId,
@@ -906,15 +905,15 @@ function createOrderWithNotifications_(data) {
     gameName: product.gameName,
     productName: product.planName,
     quantity: quantity,
-    unitPrice: product.price,
-    originalTotal: originalTotal,
-    total: membership.payableTotal,
-    memberLevel: membership.level.name,
-    memberLevelKey: membership.level.key,
-    memberDiscount: membership.level.discountLabel,
-    memberDiscountPercent: membership.level.discountPercent,
-    discountAmount: membership.discountAmount,
-    priorityQueue: membership.level.priority,
+    unitPrice: pricing.unitPrice,
+    originalTotal: pricing.originalTotal,
+    total: pricing.payableTotal,
+    memberLevel: pricing.level.name,
+    memberLevelKey: pricing.level.key,
+    memberDiscount: pricing.discountLabel,
+    memberDiscountPercent: pricing.level.discountPercent,
+    discountAmount: pricing.discountAmount,
+    priorityQueue: pricing.level.priority,
     payment: paymentMethod,
     paymentMethod: paymentMethod,
     paymentAccountKey: paymentAccountKey,
@@ -2084,6 +2083,95 @@ function normalizePaymentAccountKey_(value) {
     .slice(0, 80);
 }
 
+function parseQuantityTierRules_(note) {
+  const text = String(note || "");
+  if (!/(階梯價|數量優惠|tier|bulk)\s*[:：]/i.test(text)) return [];
+  const rules = [];
+  const regex = /(\d+)\s*(?:單|件|個|組|起)?\s*(?:=|:|：)\s*(?:NT\$?\s*)?([\d,]+)/gi;
+  let match = null;
+  while ((match = regex.exec(text))) {
+    const minQty = Number(match[1]);
+    const unitPrice = Number(String(match[2] || "").replace(/,/g, ""));
+    if (Number.isFinite(minQty) && minQty > 1 && Number.isFinite(unitPrice) && unitPrice > 0) {
+      rules.push({ minQty: minQty, unitPrice: unitPrice });
+    }
+  }
+  return rules;
+}
+
+function isBundlePlanName_(name) {
+  return /(?:\*|x|X|×)\s*\d+/.test(String(name || ""));
+}
+
+function getDefaultQuantityTierRules_(product) {
+  const gameText = String((product && (product.gameId + " " + product.gameName)) || "").toLowerCase();
+  const planName = String((product && product.planName) || "");
+  const isLoginTopupPlan = gameText.indexOf("uid") < 0
+    && (gameText.indexOf("login") >= 0 || gameText.indexOf("上號") >= 0);
+  const is8100Plan = /8100/.test(planName) && !isBundlePlanName_(planName);
+  if (!isLoginTopupPlan || !is8100Plan) return [];
+  if (Number(product && product.price || 0) === 2600) {
+    return [{ minQty: 3, unitPrice: 2570 }, { minQty: 5, unitPrice: 2550 }];
+  }
+  if (
+    Number(product && product.price || 0) === 2550
+    && /日韓/.test(planName)
+    && !/國際/.test(planName)
+  ) {
+    return [{ minQty: 5, unitPrice: 2500 }];
+  }
+  return [];
+}
+
+function getQuantityTierRules_(product) {
+  const basePrice = Number(product && product.price || 0);
+  const configuredRules = parseQuantityTierRules_(product && product.note);
+  const rules = configuredRules.length
+    ? configuredRules
+    : getDefaultQuantityTierRules_(product);
+  return rules
+    .filter(function (rule) {
+      return Number(rule.unitPrice) > 0 && Number(rule.unitPrice) < basePrice;
+    })
+    .sort(function (a, b) {
+      return Number(a.minQty) - Number(b.minQty);
+    });
+}
+
+function getApplicableQuantityTier_(product, quantity) {
+  const count = Math.max(1, Number(quantity || 1));
+  const rules = getQuantityTierRules_(product).filter(function (rule) {
+    return count >= Number(rule.minQty);
+  });
+  rules.sort(function (a, b) {
+    return Number(b.minQty) - Number(a.minQty);
+  });
+  return rules[0] || null;
+}
+
+function calculateProductOrderPricing_(spreadsheet, product, quantity, lineUserId) {
+  const count = Math.max(1, Number(quantity || 1));
+  const baseUnitPrice = Math.max(0, Number(product && product.price || 0));
+  const tier = getApplicableQuantityTier_(product, count);
+  const unitPrice = tier ? Number(tier.unitPrice) : baseUnitPrice;
+  const originalTotal = Math.max(0, baseUnitPrice * count);
+  const quantitySubtotal = Math.max(0, unitPrice * count);
+  const quantityDiscountAmount = Math.max(0, Math.round(originalTotal - quantitySubtotal));
+  const membership = getMemberPricingProfile_(spreadsheet, lineUserId, quantitySubtotal);
+  const discountAmount = quantityDiscountAmount + Number(membership.discountAmount || 0);
+  const discountLabel = tier
+    ? "數量優惠：" + tier.minQty + "單起 NT$ " + formatMoney_(tier.unitPrice) + "/單"
+    : membership.level.discountLabel;
+  return {
+    unitPrice: unitPrice,
+    originalTotal: originalTotal,
+    discountAmount: discountAmount,
+    payableTotal: membership.payableTotal,
+    level: membership.level,
+    discountLabel: discountLabel
+  };
+}
+
 function getInitialPaymentVerificationStatus_(paymentMethod, accountVerification) {
   if (accountVerification.requiresReverification) return "需要重新驗證";
   if (accountVerification.verified) return "驗證通過（可傳截圖）";
@@ -2122,7 +2210,8 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
       gameName: rowGameName,
       planId: rowPlanId,
       planName: rowPlanName,
-      price: price
+      price: price,
+      note: String(row[9] || "").trim()
     });
   }
 

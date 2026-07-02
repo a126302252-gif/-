@@ -267,6 +267,7 @@ function saveOrderPayload_(data) {
     }
 
     const quantity = normalizeQuantity_(data.quantity);
+    const pricing = calculateProductOrderPricing_(product, quantity);
     const safeOrder = Object.assign({}, data, {
       orderId: cleanOrderId_(data.orderId) || createOrderId_(),
       sourceAccount,
@@ -275,8 +276,8 @@ function saveOrderPayload_(data) {
       gameName: product.gameName,
       productName: product.planName,
       quantity,
-      unitPrice: product.price,
-      total: product.price * quantity
+      unitPrice: pricing.unitPrice,
+      total: pricing.total
     });
 
     const sheet = getOrderSheet_();
@@ -650,6 +651,64 @@ function normalizeQuantity_(value) {
   return Math.min(20, Math.max(1, Math.floor(quantity)));
 }
 
+function parseQuantityTierRules_(note) {
+  const text = String(note || "");
+  if (!/(階梯價|數量優惠|tier|bulk)\s*[:：]/i.test(text)) return [];
+  const rules = [];
+  const regex = /(\d+)\s*(?:單|件|個|組|起)?\s*(?:=|:|：)\s*(?:NT\$?\s*)?([\d,]+)/gi;
+  let match = null;
+  while ((match = regex.exec(text))) {
+    const minQty = Number(match[1]);
+    const unitPrice = Number(String(match[2] || "").replace(/,/g, ""));
+    if (Number.isFinite(minQty) && minQty > 1 && Number.isFinite(unitPrice) && unitPrice > 0) {
+      rules.push({ minQty, unitPrice });
+    }
+  }
+  return rules;
+}
+
+function getDefaultQuantityTierRules_(product) {
+  const gameText = String((product && (product.gameId + " " + product.gameName)) || "").toLowerCase();
+  const planName = String((product && product.planName) || "");
+  const isLoginTopupPlan = gameText.indexOf("uid") < 0
+    && (gameText.indexOf("login") >= 0 || gameText.indexOf("上號") >= 0);
+  const is8100Plan = /8100/.test(planName) && !/(?:\*|x|X|×)\s*\d+/.test(planName);
+  if (!isLoginTopupPlan || !is8100Plan) return [];
+  if (Number(product && product.price || 0) === 2600) return [{ minQty: 3, unitPrice: 2570 }, { minQty: 5, unitPrice: 2550 }];
+  if (
+    Number(product && product.price || 0) === 2550
+    && /日韓/.test(planName)
+    && !/國際/.test(planName)
+  ) {
+    return [{ minQty: 5, unitPrice: 2500 }];
+  }
+  return [];
+}
+
+function getQuantityTierRules_(product) {
+  const basePrice = Number(product && product.price || 0);
+  const configuredRules = parseQuantityTierRules_(product && product.note);
+  const rules = configuredRules.length
+    ? configuredRules
+    : getDefaultQuantityTierRules_(product);
+  return rules
+    .filter((rule) => Number(rule.unitPrice) > 0 && Number(rule.unitPrice) < basePrice)
+    .sort((a, b) => Number(a.minQty) - Number(b.minQty));
+}
+
+function calculateProductOrderPricing_(product, quantity) {
+  const count = Math.max(1, Number(quantity || 1));
+  const baseUnitPrice = Math.max(0, Number(product && product.price || 0));
+  const tier = getQuantityTierRules_(product)
+    .filter((rule) => count >= Number(rule.minQty))
+    .sort((a, b) => Number(b.minQty) - Number(a.minQty))[0] || null;
+  const unitPrice = tier ? Number(tier.unitPrice) : baseUnitPrice;
+  return {
+    unitPrice,
+    total: Math.max(0, Math.round(unitPrice * count))
+  };
+}
+
 function cleanOrderId_(value) {
   return String(value || "").trim().slice(0, 80);
 }
@@ -693,7 +752,8 @@ function findProductPlan_(gameId, planId, gameName, productName) {
     gameName: game.name,
     planId: plan.sourcePlanId || plan.id,
     planName: plan.name,
-    price: Number(plan.price || 0)
+    price: Number(plan.price || 0),
+    note: String(plan.note || "")
   };
 }
 

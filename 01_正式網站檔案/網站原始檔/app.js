@@ -208,7 +208,7 @@ function normalizePlanEntries(plans) {
 
 function getPlanBundleInfo(plan) {
   const rawName = String(plan?.name || "").replace(/\s+/g, " ").trim();
-  const match = rawName.match(/^(.*?)(\d[\d,]*)\s*[*xX×]\s*(\d+)\s*([^\d]*)$/);
+  const match = rawName.match(/^(.*?)(\d[\d,]*)\s*(?:\*|x|X|×)\s*(\d+)\s*([^\d]*)$/);
   if (!match) return null;
   const count = Number(match[3]);
   if (!Number.isFinite(count) || count <= 1) return null;
@@ -226,11 +226,79 @@ function formatPlanDisplayName(plan) {
   return `${bundle.baseName} ×${bundle.count}單優惠`;
 }
 
-function getPlanSupportText(plan, fallback = "確認訂單後處理") {
+function getPublicPlanNote(plan) {
+  return String(plan?.note || "")
+    .split(/[｜|;；\n]+/)
+    .map((part) => part.trim())
+    .filter((part) => part && !/^(階梯價|數量優惠|tier|bulk)\s*[:：]/i.test(part))
+    .join("｜");
+}
+
+function parseQuantityTierRules(plan) {
+  const note = String(plan?.note || "");
+  if (!/(階梯價|數量優惠|tier|bulk)\s*[:：]/i.test(note)) return [];
+  const rules = [];
+  const regex = /(\d+)\s*(?:單|件|個|組|起)?\s*(?:=|:|：)\s*(?:NT\$?\s*)?([\d,]+)/gi;
+  let match = null;
+  while ((match = regex.exec(note))) {
+    const minQty = Number(match[1]);
+    const unitPrice = Number(String(match[2] || "").replace(/,/g, ""));
+    if (Number.isFinite(minQty) && minQty > 1 && Number.isFinite(unitPrice) && unitPrice > 0) {
+      rules.push({ minQty, unitPrice });
+    }
+  }
+  return rules;
+}
+
+function getDefaultQuantityTierRules(game, plan) {
+  const gameText = `${game?.id || ""} ${game?.name || ""}`.toLowerCase();
+  const planName = String(plan?.name || "");
+  const isLoginTopupPlan = !gameText.includes("uid")
+    && (gameText.includes("login") || gameText.includes("上號"));
+  const is8100Plan = /8100/.test(planName) && !getPlanBundleInfo(plan);
+  if (!isLoginTopupPlan || !is8100Plan) return [];
+  if (Number(plan?.price || 0) === 2600) return [{ minQty: 3, unitPrice: 2570 }, { minQty: 5, unitPrice: 2550 }];
+  if (
+    Number(plan?.price || 0) === 2550
+    && /日韓/.test(planName)
+    && !/國際/.test(planName)
+  ) {
+    return [{ minQty: 5, unitPrice: 2500 }];
+  }
+  return [];
+}
+
+function getQuantityTierRules(game, plan) {
+  const basePrice = Number(plan?.price || 0);
+  const configuredRules = parseQuantityTierRules(plan);
+  const rules = configuredRules.length
+    ? configuredRules
+    : getDefaultQuantityTierRules(game, plan);
+  return rules
+    .filter((rule) => Number(rule.unitPrice) > 0 && Number(rule.unitPrice) < basePrice)
+    .sort((a, b) => Number(a.minQty) - Number(b.minQty));
+}
+
+function getApplicableQuantityTier(game, plan, qty) {
+  const count = Math.max(1, Number(qty || 1));
+  return getQuantityTierRules(game, plan)
+    .filter((rule) => count >= Number(rule.minQty))
+    .sort((a, b) => Number(b.minQty) - Number(a.minQty))[0] || null;
+}
+
+function getQuantityTierHint(game, plan) {
+  const rules = getQuantityTierRules(game, plan);
+  return rules.map((rule) => `${rule.minQty}單起 ${currency.format(rule.unitPrice)}/單`).join("｜");
+}
+
+function getPlanSupportText(plan, game, fallback = "確認訂單後處理") {
   const bundle = getPlanBundleInfo(plan);
   const pieces = [];
-  if (plan?.note) pieces.push(plan.note);
+  const publicNote = getPublicPlanNote(plan);
+  const tierHint = getQuantityTierHint(game, plan);
+  if (publicNote) pieces.push(publicNote);
   if (plan?.eta) pieces.push(plan.eta);
+  if (tierHint) pieces.push(tierHint);
   if (bundle) pieces.push(`1單 = ${bundle.baseName}`);
   return pieces.join("｜") || fallback;
 }
@@ -546,19 +614,35 @@ function getActiveMemberProfile() {
   return memberProfile || DEFAULT_MEMBER_PROFILE;
 }
 
-function getOrderPricing(plan, qty) {
+function getOrderPricing(plan, qty, game = getGame()) {
   const profile = getActiveMemberProfile();
-  const originalTotal = Math.max(0, Number(plan?.price || 0) * Math.max(1, Number(qty || 1)));
+  const count = Math.max(1, Number(qty || 1));
+  const baseUnitPrice = Math.max(0, Number(plan?.price || 0));
+  const quantityTier = getApplicableQuantityTier(game, plan, count);
+  const unitPrice = quantityTier ? Number(quantityTier.unitPrice) : baseUnitPrice;
+  const originalTotal = Math.max(0, baseUnitPrice * count);
+  const quantitySubtotal = Math.max(0, unitPrice * count);
+  const quantityDiscountAmount = Math.max(0, Math.round(originalTotal - quantitySubtotal));
   const discountPercent = Math.max(0, Number(profile.discountPercent || 0));
-  const discountAmount = Math.round(originalTotal * discountPercent / 100);
-  const payableTotal = Math.max(0, Math.round(originalTotal - discountAmount));
+  const memberDiscountAmount = Math.round(quantitySubtotal * discountPercent / 100);
+  const discountAmount = quantityDiscountAmount + memberDiscountAmount;
+  const payableTotal = Math.max(0, Math.round(quantitySubtotal - memberDiscountAmount));
+  const quantityDiscountLabel = quantityTier
+    ? `數量優惠：${quantityTier.minQty}單起 ${currency.format(quantityTier.unitPrice)}/單`
+    : "";
+  const memberDiscountLabel = profile.discountLabel || "無折扣";
   return {
     originalTotal,
+    unitPrice,
     discountPercent,
     discountAmount,
+    quantityDiscountAmount,
+    memberDiscountAmount,
     payableTotal,
     memberLevel: profile.memberLevel || "普通會員",
-    discountLabel: profile.discountLabel || "無折扣",
+    discountLabel: quantityDiscountLabel || memberDiscountLabel,
+    memberDiscountLabel,
+    quantityDiscountLabel,
     priorityQueue: Boolean(profile.priorityQueue)
   };
 }
@@ -1058,7 +1142,7 @@ function renderPlanPicker(game = getGame()) {
     <button class="plan-picker-option" type="button" role="option" data-plan-id="${escapeHtml(plan.id)}">
       <span>${escapeHtml(formatPlanDisplayName(plan))}</span>
       <strong>${escapeHtml(currency.format(plan.price))}</strong>
-      <small>${escapeHtml(getPlanSupportText(plan))}</small>
+      <small>${escapeHtml(getPlanSupportText(plan, game))}</small>
     </button>
   `).join("");
   updatePlanPickerSelection();
@@ -1271,7 +1355,7 @@ function renderPriceCard(game, plan, label) {
         <div>
           <span>${escapeHtml(label)}</span>
           <h3>${escapeHtml(formatPlanDisplayName(plan))}</h3>
-          <small>${escapeHtml(getPlanSupportText(plan))}</small>
+          <small>${escapeHtml(getPlanSupportText(plan, game))}</small>
         </div>
         <strong>${currency.format(plan.price)}</strong>
         <button type="button" class="select-plan" data-game-id="${escapeHtml(game.id)}" data-plan-id="${escapeHtml(plan.id)}">選擇並下單</button>
@@ -1285,7 +1369,7 @@ function updateSummary() {
   if (!game || !plan) return;
 
   const qty = Math.max(1, Number(quantity.value || 1));
-  const pricing = getOrderPricing(plan, qty);
+  const pricing = getOrderPricing(plan, qty, game);
   summaryGame.textContent = game.name;
   summaryPlan.textContent = formatPlanDisplayName(plan);
   summaryEta.textContent = plan.eta;
@@ -1706,7 +1790,7 @@ orderForm.addEventListener("submit", async (event) => {
   const plan = getPlan(game, planSelect.value);
   const qty = Math.max(1, Number(quantity.value || 1));
   const paymentMethod = getPayment();
-  const pricing = getOrderPricing(plan, qty);
+  const pricing = getOrderPricing(plan, qty, game);
   const accountKey = paymentAccountKey?.value.trim() || "";
   const loginInfo = collectGameLoginInfo(game, plan);
   if ((paymentMethod === "網銀" || paymentMethod === "街口") && !accountKey) {
@@ -1736,7 +1820,7 @@ orderForm.addEventListener("submit", async (event) => {
     gameName: game.name,
     productName: plan.name,
     quantity: qty,
-    unitPrice: plan.price,
+    unitPrice: pricing.unitPrice,
     originalTotal: pricing.originalTotal,
     total: pricing.payableTotal,
     memberLevel: pricing.memberLevel,
