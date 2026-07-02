@@ -8,12 +8,12 @@ window.LINE_CHANNELS = {
   main: {
     liffId: "2010567843-kTKZkCJY",
     sourceAccount: "main",
-    sourceName: "本號 陳龍龍工作室",
+    sourceName: "DC手遊代儲官方 LINE",
     orderPrefix: "CLL"
   }
 };
 
-window.DEFAULT_LINE_CHANNEL = "dc";
-window.LINE_LIFF_ID = window.LINE_CHANNELS.dc.liffId;
+window.DEFAULT_LINE_CHANNEL = "main";
+window.LINE_LIFF_ID = window.LINE_CHANNELS.main.liffId;
 window.STUDIO_BRAND_NAME = "陳龍龍工作室";
-window.ORDER_PREFIX = "DC";
+window.ORDER_PREFIX = "CLL";

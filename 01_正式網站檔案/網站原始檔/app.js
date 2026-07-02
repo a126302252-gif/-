@@ -144,8 +144,8 @@ const DEFAULT_MEMBER_PROFILE = {
   levels: [
     { name: "普通會員", minSpent: 0, discountLabel: "無折扣", priorityQueue: false },
     { name: "青銅會員", minSpent: 30000, discountLabel: "無折扣", priorityQueue: true },
-    { name: "白銀會員", minSpent: 50000, discountLabel: "99 折", priorityQueue: true },
-    { name: "黃金會員", minSpent: 100000, discountLabel: "98 折", priorityQueue: true }
+    { name: "白銀會員", minSpent: 50000, discountLabel: "無折扣", priorityQueue: true },
+    { name: "黃金會員", minSpent: 100000, discountLabel: "無折扣", priorityQueue: true }
   ]
 };
 
@@ -171,17 +171,53 @@ function resolveLineChannel() {
 
 function normalizeCatalog(source) {
   const safeSource = source && Array.isArray(source.games) ? source : { categories: ["所有遊戲"], games: [] };
+  const normalizedGames = safeSource.games
+    .filter((game) => game && game.active !== false && game.id !== PAYMENT_SETTINGS_GAME_ID)
+    .map((game) => ({
+      ...game,
+      plans: Array.isArray(game.plans) ? game.plans.filter((plan) => plan && plan.active !== false) : []
+    }))
+    .filter((game) => game.plans.length);
+
   return {
     categories: Array.isArray(safeSource.categories) && safeSource.categories.length
       ? safeSource.categories.filter((category) => category !== "系統設定")
       : ["所有遊戲"],
-    games: safeSource.games
-      .filter((game) => game && game.active !== false && game.id !== PAYMENT_SETTINGS_GAME_ID)
-      .map((game) => ({
-        ...game,
-        plans: Array.isArray(game.plans) ? game.plans.filter((plan) => plan && plan.active !== false) : []
-      }))
-      .filter((game) => game.plans.length)
+    games: organizeStoreGames(normalizedGames)
+  };
+}
+
+function organizeStoreGames(sourceGames) {
+  const gamesToRender = [];
+  sourceGames.forEach((game) => {
+    const gameId = String(game?.id || "").toLowerCase();
+    if (gameId === "delta") {
+      const uidPlans = game.plans.filter((plan) => String(plan?.id || "").toLowerCase().includes("-uid-"));
+      const loginPlans = game.plans.filter((plan) => !String(plan?.id || "").toLowerCase().includes("-uid-"));
+      if (uidPlans.length) gamesToRender.push(createDeltaGame(game, "delta-uid", "三角洲 UID儲值", "UID 儲值", uidPlans));
+      if (loginPlans.length) gamesToRender.push(createDeltaGame(game, "delta-login", "三角洲 上號儲值", "上號儲值", loginPlans));
+      return;
+    }
+    if (gameId === "delta-uid") {
+      gamesToRender.push(createDeltaGame(game, "delta-uid", "三角洲 UID儲值", "UID 儲值", game.plans));
+      return;
+    }
+    if (gameId === "delta-login") {
+      gamesToRender.push(createDeltaGame(game, "delta-login", "三角洲 上號儲值", "上號儲值", game.plans));
+      return;
+    }
+    gamesToRender.push(game);
+  });
+  return gamesToRender;
+}
+
+function createDeltaGame(baseGame, id, name, description, plans) {
+  return {
+    ...baseGame,
+    id,
+    name,
+    description,
+    plans
   };
 }
 
@@ -227,7 +263,9 @@ function applyCatalog(nextData) {
 
 function applyRequestedOrderSelection() {
   if (CURRENT_PAGE !== "order" || !REQUESTED_GAME_ID) return false;
-  const requestedGame = games.find((game) => game.id === REQUESTED_GAME_ID);
+  const requestedGame = games.find((game) => game.id === REQUESTED_GAME_ID)
+    || games.find((game) => game.plans.some((plan) => plan.id === REQUESTED_PLAN_ID))
+    || (REQUESTED_GAME_ID === "delta" ? games.find((game) => game.id === "delta-uid" || game.id === "delta-login") : null);
   if (!requestedGame) return false;
   selectedGameId = requestedGame.id;
   selectedPlanId = requestedGame.plans.some((plan) => plan.id === REQUESTED_PLAN_ID)
@@ -930,7 +968,7 @@ function getPubgmMethod(game) {
 function isLoginTopup(game, plan = getPlan(game)) {
   const gameId = String(game?.id || "").toLowerCase();
   const planId = String(plan?.id || "").toLowerCase();
-  if (gameId === "pubgm-uid" || (gameId.includes("pubgm") && planId.includes("-uid-"))) return false;
+  if (gameId === "pubgm-uid" || gameId.endsWith("-uid") || planId.includes("-uid-")) return false;
   return true;
 }
 

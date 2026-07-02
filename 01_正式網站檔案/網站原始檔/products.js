@@ -116,17 +116,29 @@ window.STUDIO_DATA = {
       ]
     },
     {
-      id: "delta",
-      name: "三角洲行動",
+      id: "delta-uid",
+      name: "三角洲 UID儲值",
       category: "重點遊戲",
       icon: "三",
       color: "pink",
       imageUrl: "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/61/c1/8f/61c18f58-cc05-e7f7-28dc-3e69a7437c85/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg",
-      description: "UID 與上號儲值",
+      description: "UID 儲值",
       active: true,
       plans: [
         { id: "delta-uid-2469", name: "2469三角幣", price: 970, eta: "5-20 分鐘" },
-        { id: "delta-uid-7680", name: "7680三角幣", price: 2900, eta: "5-20 分鐘" },
+        { id: "delta-uid-7680", name: "7680三角幣", price: 2900, eta: "5-20 分鐘" }
+      ]
+    },
+    {
+      id: "delta-login",
+      name: "三角洲 上號儲值",
+      category: "重點遊戲",
+      icon: "三",
+      color: "pink",
+      imageUrl: "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/61/c1/8f/61c18f58-cc05-e7f7-28dc-3e69a7437c85/AppIcon-1x_U007emarketing-0-8-0-85-220-0.png/512x512bb.jpg",
+      description: "上號儲值",
+      active: true,
+      plans: [
         { id: "delta-login-320", name: "320三角幣", price: 160, eta: "5-20 分鐘" },
         { id: "delta-login-750", name: "750三角幣", price: 300, eta: "5-20 分鐘" },
         { id: "delta-login-1480", name: "1480三角幣", price: 600, eta: "5-20 分鐘" },
