@@ -1,8 +1,8 @@
-const ADMIN_CACHE = "cll-admin-pwa-v7";
+const ADMIN_CACHE = "cll-admin-pwa-v8";
 const ADMIN_SHELL = [
   "/admin.html",
-  "/admin.css?v=20260703-admin-v2",
-  "/admin.js?v=20260703-admin-v2",
+  "/admin.css?v=20260703-admin-v3",
+  "/admin.js?v=20260703-admin-v3",
   "/manifest.webmanifest",
   "/assets/dragon-premium-hero.webp"
 ];

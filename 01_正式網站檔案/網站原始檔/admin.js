@@ -375,11 +375,14 @@ function closeOrderDetail() {
 async function loadOrders(showToast = false) {
   if (!adminToken) return;
   setLoading(true);
-  if (showToast) setMessage(dashboardMessage, "讀取訂單中...");
+  setMessage(
+    dashboardMessage,
+    showToast ? "讀取訂單中，第一次開啟可能需要 10-30 秒..." : "正在同步訂單資料..."
+  );
   const response = await adminApi("listOrders", {
     token: adminToken,
     status: currentStatus
-  }, 35000);
+  }, 60000);
   setLoading(false);
 
   if (!response.ok) {
@@ -455,6 +458,7 @@ loginForm.addEventListener("submit", async (event) => {
   adminPassword.value = "";
   setMessage(loginMessage, "");
   showDashboard(true);
+  setMessage(dashboardMessage, "登入成功，正在讀取訂單...");
   await loadOrders(true);
 });
 
