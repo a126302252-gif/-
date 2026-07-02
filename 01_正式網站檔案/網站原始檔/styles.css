@@ -563,6 +563,56 @@ textarea:focus {
   border-radius: 8px;
 }
 
+.order-form {
+  display: grid;
+  gap: 18px;
+}
+
+.order-step {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(218, 174, 88, .18);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .18);
+}
+
+.order-step-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.order-step-head > span {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(233, 191, 105, .5);
+  border-radius: 50%;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.order-step-head strong,
+.terms-confirmation-head strong {
+  color: #fff2c9;
+}
+
+.order-step-head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.order-step > .submit-btn {
+  width: 100%;
+  min-height: 54px;
+}
+
 .form-grid,
 .admin-form {
   display: grid;
@@ -722,7 +772,7 @@ label {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
   padding: 16px;
   border: 1px solid rgba(218, 174, 88, .24);
   border-radius: 8px;
@@ -1073,7 +1123,7 @@ label {
 .payment-box {
   display: grid;
   gap: 12px;
-  margin: 14px 0 8px;
+  margin: 0;
   padding: 16px;
   border: 1px solid rgba(218, 174, 88, .24);
   border-radius: 8px;
@@ -1399,10 +1449,8 @@ label {
     min-height: 60px;
   }
 
-  .order-form > .submit-btn {
-    position: sticky;
-    bottom: 12px;
-    z-index: 8;
+  .order-step > .submit-btn {
+    position: static;
     width: 100%;
     min-height: 54px;
   }

@@ -12,10 +12,21 @@
 
 - 後台入口：`/admin.html`
 - 前台檔案：`admin.html`、`admin.css`、`admin.js`、`manifest.webmanifest`、`sw.js`
+- 後台代理：`netlify/functions/admin-api.js`，用來讓手機後台穩定讀取 Apps Script 訂單資料。
 - 訂單狀態：`訂單成立`、`已付款`、`已完成`、`已取消`、`全部`
 - `已付款` 是內部後台狀態，不會發客人 LINE，也不會計入會員累積消費；只有 `已完成` 才會計入會員累積並發完成通知。
 - 後台密碼不放在前端，請在 Apps Script Script Properties 設定 `ADMIN_PASSWORD_SHA256`。
 - Discord Webhook 不放在前端，沿用 Apps Script Script Properties 的 Discord webhook 設定。
+
+## 平常怎麼改
+
+- 改商品名稱、價格、上下架：優先改 Google 試算表的商品分頁。
+- 改 3 單、5 單、6 單以上優惠：改商品表尾端的 `3單起單價`、`5單起單價`、`其他階梯價`。
+- 改付款文字：優先改 Google 試算表或 Apps Script 付款設定，不要把正式收款資料寫進前台檔案。
+- 改 LINE 本號/小號 LIFF：看 `01_正式網站檔案/網站原始檔/line-config.js`。
+- 改前台畫面：主要是 `index.html`、`styles.css`、`app.js`。
+- 改手機後台畫面：主要是 `admin.html`、`admin.css`、`admin.js`。
+- 改後端訂單、會員、通知邏輯：在 `03_後端程式/會員與訂單完成.gs`，改完要重新發布 Apps Script。
 
 ## 不放進 Git 的資料
 

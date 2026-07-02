@@ -65,7 +65,7 @@
     <link rel="preconnect" href="https://static.line-scdn.net" crossorigin />
     <link rel="dns-prefetch" href="https://script.google.com" />
     <link rel="preload" as="image" href="assets/dragon-premium-hero.webp" fetchpriority="high" />
-    <link rel="stylesheet" href="styles.css?v=20260702-polish-1" />
+    <link rel="stylesheet" href="styles.css?v=20260703-order-steps-1" />
     <script defer src="products.js?v=20260702-pubgm-login-split-1"></script>
     <script defer src="line-config.js?v=20260702-main-account-v1"></script>
     <script defer src="payment-config.js?v=20260629-order-success"></script>
@@ -170,7 +170,16 @@
             <span class="secure-badge">LINE 會員驗證</span>
           </div>
 
-          <div class="member-panel" id="lineMemberPanel">
+          <section class="order-step">
+            <div class="order-step-head">
+              <span>1</span>
+              <div>
+                <strong>選擇商品</strong>
+                <small>確認會員、遊戲、方案與數量。</small>
+              </div>
+            </div>
+
+            <div class="member-panel" id="lineMemberPanel">
             <div class="member-identity">
               <span>LINE 會員</span>
               <strong id="lineMemberName">尚未登入</strong>
@@ -196,9 +205,9 @@
             </div>
             <button class="secondary-button line-login-button" id="lineLoginButton" type="button">LINE 登入</button>
             <a class="secondary-button member-area-link" href="/member">查看會員專區</a>
-          </div>
+            </div>
 
-          <div class="form-grid">
+            <div class="form-grid product-grid">
             <label>
               遊戲
               <select id="gameSelect" required></select>
@@ -216,6 +225,63 @@
               <input id="quantity" type="number" min="1" max="20" value="1" required />
               <small id="quantityTierHint" class="quantity-tier-hint" hidden></small>
             </label>
+            </div>
+          </section>
+
+          <section class="order-step">
+            <div class="order-step-head">
+              <span>2</span>
+              <div>
+                <strong>選擇付款方式</strong>
+                <small>付款資訊會由官方 LINE 傳送給客人。</small>
+              </div>
+            </div>
+            <div class="payment-box">
+              <div class="payment-title">
+                <span>付款方式</span>
+                <small>選好後繼續填寫代儲資料。</small>
+              </div>
+              <div class="payment-options">
+                <button class="pay active" data-payment="網銀" type="button">
+                  <strong>網銀轉帳</strong>
+                  <small>銀行帳戶付款</small>
+                </button>
+                <button class="pay" data-payment="無卡" type="button">
+                  <strong>無卡存款</strong>
+                  <small>ATM / 無卡存款</small>
+                </button>
+                <button class="pay" data-payment="LINE Pay" type="button">
+                  <strong>LINE Pay</strong>
+                  <small>請向客服確認</small>
+                </button>
+                <button class="pay" data-payment="街口" type="button">
+                  <strong>街口支付</strong>
+                  <small>填末三碼辨識</small>
+                </button>
+              </div>
+              <label id="paymentAccountField" class="payment-account-field">
+                付款帳戶識別
+                <input id="paymentAccountKey" type="text" maxlength="80" placeholder="銀行名稱＋帳號末五碼" autocomplete="off" />
+                <small id="paymentAccountHint">只填銀行名稱與帳號末五碼，不要填完整帳號。</small>
+              </label>
+              <div class="payment-preview">
+                <small>已選付款方式</small>
+                <p id="paymentPreview">付款方式：網銀</p>
+                <strong class="payment-safety-warning">只接受本人付款，禁止第三方代付、代轉、代存。</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="order-step">
+            <div class="order-step-head">
+              <span>3</span>
+              <div>
+                <strong>填寫代儲資料</strong>
+                <small>送出前請確認 UID、伺服器與玩家名稱。</small>
+              </div>
+            </div>
+
+            <div class="form-grid player-grid">
             <label>
               伺服器 / 區服
               <input id="serverName" type="text" placeholder="例如：台服、國際服、亞服" required />
@@ -250,51 +316,16 @@
               密碼
               <input id="gameLoginPassword" type="text" maxlength="160" autocomplete="off" placeholder="請填遊戲登入密碼" />
             </label>
-          </div>
+            </div>
 
-          <div class="payment-box">
-            <div class="payment-title">
-              <span>付款方式</span>
-              <small>選好後送出訂單，付款資訊會由官方 LINE 傳送。</small>
-            </div>
-            <div class="payment-options">
-              <button class="pay active" data-payment="網銀" type="button">
-                <strong>網銀轉帳</strong>
-                <small>銀行帳戶付款</small>
-              </button>
-              <button class="pay" data-payment="無卡" type="button">
-                <strong>無卡存款</strong>
-                <small>ATM / 無卡存款</small>
-              </button>
-              <button class="pay" data-payment="LINE Pay" type="button">
-                <strong>LINE Pay</strong>
-                <small>請向客服確認</small>
-              </button>
-              <button class="pay" data-payment="街口" type="button">
-                <strong>街口支付</strong>
-                <small>填末三碼辨識</small>
-              </button>
-            </div>
-            <label id="paymentAccountField" class="payment-account-field">
-              付款帳戶識別
-              <input id="paymentAccountKey" type="text" maxlength="80" placeholder="銀行名稱＋帳號末五碼" autocomplete="off" />
-              <small id="paymentAccountHint">只填銀行名稱與帳號末五碼，不要填完整帳號。</small>
+            <p class="verify-status" id="verifyStatus">請先登入 LINE 會員後再下單。</p>
+
+            <label class="wide">
+              備註
+              <textarea id="notes" rows="4" placeholder="可填付款後五碼、特殊需求或客服備註"></textarea>
             </label>
-            <div class="payment-preview">
-              <small>已選付款方式</small>
-              <p id="paymentPreview">付款方式：網銀</p>
-              <strong class="payment-safety-warning">只接受本人付款，禁止第三方代付、代轉、代存。</strong>
-            </div>
-          </div>
 
-          <p class="verify-status" id="verifyStatus">請先登入 LINE 會員後再下單。</p>
-
-          <label class="wide">
-            備註
-            <textarea id="notes" rows="4" placeholder="可填付款後五碼、特殊需求或客服備註"></textarea>
-          </label>
-
-          <section class="terms-confirmation" aria-labelledby="termsTitle">
+            <section class="terms-confirmation" aria-labelledby="termsTitle">
             <div class="terms-confirmation-head">
               <div>
                 <span>下單前必讀</span>
@@ -311,14 +342,15 @@
               <input id="ageConfirmed" type="checkbox" required />
               <span>我確認本人已滿 18 歲；若未滿 18 歲，已事先取得法定代理人同意後下單。</span>
             </label>
+            </section>
+
+            <label class="check-row">
+              <input id="policy" type="checkbox" required />
+              <span>我確認遊戲、伺服器、UID 與方案皆正確；若填寫錯誤導致儲值問題，需自行承擔責任。</span>
+            </label>
+
+            <button class="submit-btn" type="submit">送出訂單</button>
           </section>
-
-          <label class="check-row">
-            <input id="policy" type="checkbox" required />
-            <span>我確認遊戲、伺服器、UID 與方案皆正確；若填寫錯誤導致儲值問題，需自行承擔責任。</span>
-          </label>
-
-          <button class="submit-btn" type="submit">送出訂單</button>
         </form>
 
         <aside class="summary" aria-live="polite">
@@ -489,6 +521,6 @@
       </section>
     </div>
 
-    <script defer src="app.js?v=20260703-tier-columns-1"></script>
+    <script defer src="app.js?v=20260703-order-steps-1"></script>
   </body>
 </html>

@@ -1,4 +1,5 @@
 const ADMIN_ENDPOINT = "https://script.google.com/macros/s/AKfycbwDT3asNWUlAHI3D5Yv7sjSkHPToDpj0Yk5wU7Pb-eiXAkWIUqJQ-nxdWCgcr4gpYZB/exec";
+const ADMIN_PROXY_ENDPOINT = "/.netlify/functions/admin-api";
 const ADMIN_TOKEN_KEY = "cll_admin_session_v1";
 const ADMIN_STATUS_TABS = ["訂單成立", "已付款", "已完成", "已取消", "全部"];
 
@@ -59,7 +60,7 @@ function createJsonpCallbackName(action) {
   return `__cllAdmin_${action}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
-function adminApi(action, payload = {}, timeoutMs = 20000) {
+function adminJsonpApi(action, payload = {}, timeoutMs = 20000) {
   return new Promise((resolve) => {
     const callbackName = createJsonpCallbackName(action);
     const script = document.createElement("script");
@@ -94,6 +95,44 @@ function adminApi(action, payload = {}, timeoutMs = 20000) {
     script.src = `${ADMIN_ENDPOINT}?${params.toString()}`;
     document.head.appendChild(script);
   });
+}
+
+async function adminProxyApi(action, payload = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(ADMIN_PROXY_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, payload }),
+      cache: "no-store",
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => null);
+    if (!data) {
+      return { ok: false, error: "BAD_RESPONSE", message: "後台回傳格式錯誤。" };
+    }
+    if (!response.ok && !data.message) {
+      data.message = "後台連線失敗，請稍後再試。";
+    }
+    return data;
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.name === "AbortError" ? "TIMEOUT" : "PROXY_FAILED",
+      message: error.name === "AbortError" ? "後台連線逾時，請稍後再試。" : "後台連線失敗，正在改用備用通道。"
+    };
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function adminApi(action, payload = {}, timeoutMs = 20000) {
+  const proxyResponse = await adminProxyApi(action, payload, timeoutMs);
+  if (proxyResponse.ok || !["PROXY_FAILED", "TIMEOUT", "BAD_RESPONSE"].includes(proxyResponse.error)) {
+    return proxyResponse;
+  }
+  return adminJsonpApi(action, payload, timeoutMs);
 }
 
 async function sha256Hex(value) {
@@ -339,8 +378,8 @@ async function loadOrders(showToast = false) {
   if (showToast) setMessage(dashboardMessage, "讀取訂單中...");
   const response = await adminApi("listOrders", {
     token: adminToken,
-    status: "全部"
-  });
+    status: currentStatus
+  }, 35000);
   setLoading(false);
 
   if (!response.ok) {
@@ -441,7 +480,7 @@ statusTabs.forEach((button) => {
   button.addEventListener("click", () => {
     currentStatus = button.dataset.status || "訂單成立";
     statusTabs.forEach((tab) => tab.classList.toggle("active", tab === button));
-    renderOrders();
+    loadOrders(true);
   });
 });
 

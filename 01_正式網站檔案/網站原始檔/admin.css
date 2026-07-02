@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   min-height: 100%;
@@ -456,4 +460,10 @@ button:disabled {
   .detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.login-view[hidden],
+.dashboard-view[hidden],
+.order-dialog[hidden] {
+  display: none !important;
 }
