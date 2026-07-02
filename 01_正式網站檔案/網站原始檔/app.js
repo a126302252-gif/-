@@ -902,7 +902,6 @@ function renderGames() {
         </div>
         <div class="game-card-body">
           <h3>${escapeHtml(game.name)}</h3>
-          <p>${escapeHtml(game.description || `${game.planCount} 種方案`)}</p>
           <small>${Number(game.planCount || 0)} 種方案</small>
         </div>
       </article>
@@ -943,7 +942,9 @@ function renderDetail() {
   catalogFilters.innerHTML = "";
   document.querySelector("#detailCategory").textContent = "商品價目";
   document.querySelector("#detailName").textContent = game.name;
-  document.querySelector("#detailDesc").textContent = game.description || "選擇方案後前往下單頁填寫資料。";
+  const detailDesc = document.querySelector("#detailDesc");
+  detailDesc.textContent = "";
+  detailDesc.hidden = true;
   priceList.innerHTML = game.plans
     .map((plan) => renderPriceCard(game, plan, "代儲方案"))
     .join("");
@@ -968,8 +969,29 @@ function getPubgmMethod(game) {
 function isLoginTopup(game, plan = getPlan(game)) {
   const gameId = String(game?.id || "").toLowerCase();
   const planId = String(plan?.id || "").toLowerCase();
-  if (gameId === "pubgm-uid" || gameId.endsWith("-uid") || planId.includes("-uid-")) return false;
-  return true;
+  const text = [
+    game?.name,
+    game?.description,
+    plan?.name,
+    plan?.note
+  ].join(" ").toLowerCase();
+  const hasLoginMarker = gameId.endsWith("-login")
+    || planId.includes("-login-")
+    || text.includes("上號")
+    || text.includes("login");
+  if (hasLoginMarker) return true;
+
+  const hasUidMarker = gameId === "pubgm-uid"
+    || gameId.endsWith("-uid")
+    || planId.includes("-uid-")
+    || planId.includes("-id-")
+    || text.includes("uid儲值")
+    || text.includes("uid代儲")
+    || text.includes("id儲值")
+    || text.includes("id代儲")
+    || text.includes("月卡")
+    || text.includes("戰令");
+  return !hasUidMarker;
 }
 
 function getSelectedPubgmOrderRegion(game, plan) {
@@ -1074,8 +1096,10 @@ function renderPubgmDetail() {
   const methodLabels = { uid: "UID 儲值", login: "上號儲值" };
 
   document.querySelector("#detailCategory").textContent = "PUBGM 專區";
-  document.querySelector("#detailName").textContent = "先選伺服器，再選儲值方式";
-  document.querySelector("#detailDesc").textContent = "選好伺服器與儲值方式後即可下單。";
+  document.querySelector("#detailName").textContent = "PUBGM";
+  const detailDesc = document.querySelector("#detailDesc");
+  detailDesc.textContent = "";
+  detailDesc.hidden = true;
   catalogFilters.hidden = false;
   catalogFilters.innerHTML = `
     <div class="catalog-filter-group">
