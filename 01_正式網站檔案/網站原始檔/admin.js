@@ -1,6 +1,6 @@
 const ADMIN_ENDPOINT = "https://script.google.com/macros/s/AKfycbwDT3asNWUlAHI3D5Yv7sjSkHPToDpj0Yk5wU7Pb-eiXAkWIUqJQ-nxdWCgcr4gpYZB/exec";
 const ADMIN_TOKEN_KEY = "cll_admin_session_v1";
-const ADMIN_STATUS_TABS = ["訂單成立", "已完成", "已取消", "全部"];
+const ADMIN_STATUS_TABS = ["訂單成立", "已付款", "已完成", "已取消", "全部"];
 
 let adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) || "";
 let currentStatus = "訂單成立";
@@ -25,11 +25,13 @@ const closeDialogButton = document.querySelector("#closeDialogButton");
 const detailTitle = document.querySelector("#detailTitle");
 const detailGrid = document.querySelector("#detailGrid");
 const completeOrderButton = document.querySelector("#completeOrderButton");
+const paidOrderButton = document.querySelector("#paidOrderButton");
 const cancelOrderButton = document.querySelector("#cancelOrderButton");
 const togglePasswordButton = document.querySelector("#togglePasswordButton");
 
 const countElements = {
   "訂單成立": document.querySelector("#countCreated"),
+  "已付款": document.querySelector("#countPaid"),
   "已完成": document.querySelector("#countCompleted"),
   "已取消": document.querySelector("#countCancelled"),
   "全部": document.querySelector("#countAll")
@@ -43,7 +45,7 @@ function setMessage(target, message, type = "") {
 
 function setLoading(value) {
   loading = Boolean(value);
-  [loginButton, refreshButton, completeOrderButton, cancelOrderButton].forEach((button) => {
+  [loginButton, refreshButton, completeOrderButton, paidOrderButton, cancelOrderButton].forEach((button) => {
     if (button) button.disabled = loading;
   });
 }
@@ -103,7 +105,7 @@ async function sha256Hex(value) {
 }
 
 function normalizeStatus(value) {
-  if (value === "已完成" || value === "已取消") return value;
+  if (value === "已付款" || value === "已完成" || value === "已取消") return value;
   return "訂單成立";
 }
 
@@ -241,6 +243,7 @@ function renderCounts(counts = {}) {
 }
 
 function statusClass(status) {
+  if (status === "已付款") return "paid";
   if (status === "已完成") return "done";
   if (status === "已取消") return "cancelled";
   return "";
@@ -315,6 +318,7 @@ function openOrderDetail(order) {
 
   const normalized = display.status;
   completeOrderButton.disabled = loading || normalized === "已完成";
+  paidOrderButton.disabled = loading || normalized === "已付款";
   cancelOrderButton.disabled = loading || normalized === "已取消";
 
   if (typeof orderDialog.showModal === "function") {
@@ -359,7 +363,12 @@ async function loadOrders(showToast = false) {
 
 async function updateSelectedOrder(status) {
   if (!selectedOrder || !adminToken || loading) return;
-  const label = status === "已完成" ? "標記已完成" : "標記已取消";
+  const actionLabels = {
+    "已付款": "標記已付款",
+    "已完成": "標記已完成",
+    "已取消": "標記已取消"
+  };
+  const label = actionLabels[status] || `改為${status}`;
   if (!window.confirm(`確定要將 ${selectedOrder.orderId} ${label}？`)) return;
 
   setLoading(true);
@@ -448,6 +457,7 @@ orderDialog.addEventListener("click", (event) => {
   if (event.target === orderDialog) closeOrderDetail();
 });
 completeOrderButton.addEventListener("click", () => updateSelectedOrder("已完成"));
+paidOrderButton.addEventListener("click", () => updateSelectedOrder("已付款"));
 cancelOrderButton.addEventListener("click", () => updateSelectedOrder("已取消"));
 
 if ("serviceWorker" in navigator) {

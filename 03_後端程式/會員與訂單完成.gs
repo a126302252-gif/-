@@ -183,7 +183,7 @@ const PRODUCT_CATALOG_CACHE_KEY = "CLL_PRODUCT_CATALOG_V2";
 const LINE_MEMBER_CACHE_PREFIX = "CLL_LINE_MEMBER_";
 const ADMIN_SESSION_PROPERTY_PREFIX = "CLL_ADMIN_SESSION_";
 const ADMIN_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
-const ADMIN_ALLOWED_ORDER_STATUSES = ["訂單成立", "已完成", "已取消"];
+const ADMIN_ALLOWED_ORDER_STATUSES = ["訂單成立", "已付款", "已完成", "已取消"];
 const DISCORD_WEBHOOK_PROPERTY_KEYS = {
   new_order: "DISCORD_WEBHOOK_NEW_ORDER",
   payment_review: "DISCORD_WEBHOOK_PAYMENT_REVIEW",
@@ -234,6 +234,7 @@ function configureAdminPasswordHash(payload) {
 
 const WORKFLOW_ORDER_STATUSES = [
   "訂單成立",
+  "已付款",
   "已驗證",
   "已完成",
   "已取消"
@@ -565,7 +566,7 @@ function cleanupAdminSessions_() {
 
 function normalizeAdminOrderStatus_(value) {
   const status = String(value || "").trim();
-  if (status === "已完成" || status === "已取消") return status;
+  if (status === "已付款" || status === "已完成" || status === "已取消") return status;
   return "訂單成立";
 }
 
@@ -584,6 +585,7 @@ function adminListOrders_(data) {
 
   const result = {
     "訂單成立": 0,
+    "已付款": 0,
     "已完成": 0,
     "已取消": 0,
     "全部": 0
@@ -742,6 +744,9 @@ function adminUpdateOrderStatus_(data) {
       sheet.getRange(row, ORDER_FEATURE_COLUMNS.completedCheckbox).setValue(false);
       if (status === "已取消") {
         sheet.getRange(row, ORDER_FEATURE_COLUMNS.settlementState).setValue("已取消");
+      } else if (status === "已付款") {
+        sheet.getRange(row, ORDER_FEATURE_COLUMNS.paymentStatus).setValue("已付款");
+        sheet.getRange(row, ORDER_FEATURE_COLUMNS.settlementState).clearContent();
       } else {
         sheet.getRange(row, ORDER_FEATURE_COLUMNS.settlementState).clearContent();
       }
@@ -750,7 +755,9 @@ function adminUpdateOrderStatus_(data) {
         sheet.getRange(row, ORDER_FEATURE_LINE_USER_ID_COLUMN).getValue() || ""
       ).trim();
       if (lineUserId) refreshMemberSummaryForUser_(lineUserId, spreadsheet);
-      sendDiscordStatusNotify_(sheet, row, status, "PWA 後台將訂單狀態改為「" + status + "」");
+      if (status !== "已付款") {
+        sendDiscordStatusNotify_(sheet, row, status, "PWA 後台將訂單狀態改為「" + status + "」");
+      }
     }
 
     SpreadsheetApp.flush();

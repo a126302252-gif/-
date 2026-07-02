@@ -151,6 +151,7 @@ input:focus {
 }
 
 .primary-button,
+.secondary-button,
 .danger-button,
 .ghost-button,
 .refresh-button,
@@ -164,6 +165,12 @@ input:focus {
 .primary-button {
   background: var(--gold);
   color: #11140f;
+}
+
+.secondary-button {
+  background: rgba(242, 207, 113, 0.14);
+  color: #ffe7a3;
+  border: 1px solid rgba(242, 207, 113, 0.38);
 }
 
 .danger-button {
@@ -221,7 +228,7 @@ button:disabled {
 
 .status-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(82px, 1fr));
   gap: 8px;
   overflow-x: auto;
 }
@@ -291,6 +298,11 @@ button:disabled {
   color: var(--text);
   font-size: 12px;
   font-weight: 800;
+}
+
+.status-pill.paid {
+  color: #161206;
+  background: #f2cf71;
 }
 
 .status-pill.done {
@@ -429,10 +441,11 @@ button:disabled {
 
 .dialog-actions {
   margin-top: 12px;
+  flex-wrap: wrap;
 }
 
 .dialog-actions button {
-  flex: 1;
+  flex: 1 1 120px;
 }
 
 @media (min-width: 720px) {
