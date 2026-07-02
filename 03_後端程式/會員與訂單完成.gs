@@ -9,7 +9,7 @@
  * 4. LINE 失敗只記錄，不會刪除已建立的訂單
  */
 
-const WORKFLOW_VERSION = "2026-07-02-admin-pwa-v1";
+const WORKFLOW_VERSION = "2026-07-02-admin-pwa-v2";
 const WORKFLOW_ORDER_STATUS_DEFAULT = "訂單成立";
 const WORKFLOW_SETTINGS_SHEET_NAME = "系統設定";
 const WORKFLOW_PAYMENT_SETTINGS_GAME_ID = "payment-settings";
@@ -166,22 +166,23 @@ const WORKFLOW_MEMBER_HEADERS = [
 const MEMBERSHIP_LEVELS = [
   { key: "normal", name: "普通會員", minSpent: 0, discountPercent: 0, discountLabel: "無折扣", priority: false },
   { key: "bronze", name: "青銅會員", minSpent: 30000, discountPercent: 0, discountLabel: "無折扣", priority: true },
-  { key: "silver", name: "白銀會員", minSpent: 50000, discountPercent: 1, discountLabel: "99 折", priority: true },
-  { key: "gold", name: "黃金會員", minSpent: 100000, discountPercent: 2, discountLabel: "98 折", priority: true }
+  { key: "silver", name: "白銀會員", minSpent: 50000, discountPercent: 0, discountLabel: "無折扣", priority: true },
+  { key: "gold", name: "黃金會員", minSpent: 100000, discountPercent: 0, discountLabel: "無折扣", priority: true }
 ];
 
 const MEMBERSHIP_LEVEL_SETTING_KEYS = [
   ["普通會員", 0, 0, false],
   ["青銅會員", 30000, 0, true],
-  ["白銀會員", 50000, 1, true],
-  ["黃金會員", 100000, 2, true]
+  ["白銀會員", 50000, 0, true],
+  ["黃金會員", 100000, 0, true]
 ];
+const MEMBERSHIP_DISCOUNTS_PAUSED = true;
 
 const PENDING_NOTIFICATION_PREFIX = "PENDING_ORDER_NOTIFICATION_";
 const PRODUCT_CATALOG_CACHE_KEY = "CLL_PRODUCT_CATALOG_V2";
 const LINE_MEMBER_CACHE_PREFIX = "CLL_LINE_MEMBER_";
-const ADMIN_SESSION_CACHE_PREFIX = "CLL_ADMIN_SESSION_";
-const ADMIN_SESSION_TTL_SECONDS = 6 * 60 * 60;
+const ADMIN_SESSION_PROPERTY_PREFIX = "CLL_ADMIN_SESSION_";
+const ADMIN_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const ADMIN_ALLOWED_ORDER_STATUSES = ["訂單成立", "已完成", "已取消"];
 const DISCORD_WEBHOOK_PROPERTY_KEYS = {
   new_order: "DISCORD_WEBHOOK_NEW_ORDER",
@@ -466,11 +467,7 @@ function adminLogin_(data) {
   }
 
   const token = sha256Hex_(Utilities.getUuid() + ":" + new Date().getTime());
-  CacheService.getScriptCache().put(
-    ADMIN_SESSION_CACHE_PREFIX + token,
-    JSON.stringify({ createdAt: new Date().toISOString() }),
-    ADMIN_SESSION_TTL_SECONDS
-  );
+  saveAdminSession_(token);
   return {
     ok: true,
     token: token,
@@ -484,14 +481,86 @@ function assertAdminSession_(token) {
     throw createAdminError_("ADMIN_UNAUTHORIZED", "請先登入後台。");
   }
 
-  const cache = CacheService.getScriptCache();
-  const key = ADMIN_SESSION_CACHE_PREFIX + safeToken;
-  const session = cache.get(key);
-  if (!session) {
+  const properties = PropertiesService.getScriptProperties();
+  const key = getAdminSessionKey_(safeToken);
+  const raw = properties.getProperty(key);
+  if (!raw) {
     throw createAdminError_("ADMIN_UNAUTHORIZED", "登入已過期，請重新登入。");
   }
-  cache.put(key, session, ADMIN_SESSION_TTL_SECONDS);
+
+  let session = null;
+  try {
+    session = JSON.parse(raw || "{}");
+  } catch (error) {
+    properties.deleteProperty(key);
+    throw createAdminError_("ADMIN_UNAUTHORIZED", "登入已過期，請重新登入。");
+  }
+
+  const now = new Date().getTime();
+  if (!session.expiresAt || Number(session.expiresAt) < now) {
+    properties.deleteProperty(key);
+    throw createAdminError_("ADMIN_UNAUTHORIZED", "登入已過期，請重新登入。");
+  }
+
+  session.lastSeenAt = now;
+  session.expiresAt = now + ADMIN_SESSION_TTL_SECONDS * 1000;
+  properties.setProperty(key, JSON.stringify(session));
   return true;
+}
+
+function saveAdminSession_(token) {
+  cleanupAdminSessions_();
+  const now = new Date().getTime();
+  PropertiesService.getScriptProperties().setProperty(
+    getAdminSessionKey_(token),
+    JSON.stringify({
+      createdAt: now,
+      lastSeenAt: now,
+      expiresAt: now + ADMIN_SESSION_TTL_SECONDS * 1000
+    })
+  );
+}
+
+function getAdminSessionKey_(token) {
+  return ADMIN_SESSION_PROPERTY_PREFIX + sha256Hex_(token).slice(0, 48);
+}
+
+function cleanupAdminSessions_() {
+  const properties = PropertiesService.getScriptProperties();
+  const all = properties.getProperties();
+  const now = new Date().getTime();
+  const sessions = Object.keys(all)
+    .filter(function (key) {
+      return key.indexOf(ADMIN_SESSION_PROPERTY_PREFIX) === 0;
+    })
+    .map(function (key) {
+      let expiresAt = 0;
+      let lastSeenAt = 0;
+      try {
+        const parsed = JSON.parse(all[key] || "{}");
+        expiresAt = Number(parsed.expiresAt || 0);
+        lastSeenAt = Number(parsed.lastSeenAt || parsed.createdAt || 0);
+      } catch (error) {
+        expiresAt = 0;
+      }
+      return { key: key, expiresAt: expiresAt, lastSeenAt: lastSeenAt };
+    });
+
+  sessions.forEach(function (session) {
+    if (!session.expiresAt || session.expiresAt < now) properties.deleteProperty(session.key);
+  });
+
+  sessions
+    .filter(function (session) {
+      return session.expiresAt && session.expiresAt >= now;
+    })
+    .sort(function (a, b) {
+      return Number(b.lastSeenAt || 0) - Number(a.lastSeenAt || 0);
+    })
+    .slice(20)
+    .forEach(function (session) {
+      properties.deleteProperty(session.key);
+    });
 }
 
 function normalizeAdminOrderStatus_(value) {
@@ -539,7 +608,8 @@ function adminListOrders_(data) {
   });
 
   orders.sort(function (a, b) {
-    return Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
+    return Number(b.orderedAtMillis || 0) - Number(a.orderedAtMillis || 0)
+      || Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
   });
 
   return {
@@ -555,6 +625,7 @@ function buildAdminOrderFromRow_(row, rowNumber) {
   const order = {
     rowNumber: rowNumber,
     orderedAt: row[0] || "",
+    orderedAtMillis: getAdminDateMillis_(row[0]),
     orderedAtText: formatAdminDate_(row[0]),
     orderId: String(row[1] || "").trim(),
     sourceName: String(row[2] || "").trim(),
@@ -592,6 +663,16 @@ function formatAdminDate_(value) {
     return Utilities.formatDate(date, "Asia/Taipei", "yyyy/MM/dd HH:mm");
   } catch (error) {
     return String(value);
+  }
+}
+
+function getAdminDateMillis_(value) {
+  if (!value) return 0;
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+  } catch (error) {
+    return 0;
   }
 }
 
@@ -2173,6 +2254,13 @@ function getMembershipLevels_(spreadsheet) {
         ? (100 - parsed.discountPercent) + " 折"
         : "無折扣";
       byName[name].priority = parsed.priority;
+    });
+  }
+
+  if (MEMBERSHIP_DISCOUNTS_PAUSED) {
+    levels.forEach(function (level) {
+      level.discountPercent = 0;
+      level.discountLabel = "無折扣";
     });
   }
 

@@ -134,11 +134,16 @@ function orderSearchText(order) {
 
 function getFilteredOrders() {
   const keyword = String(orderSearch.value || "").trim().toLowerCase();
-  return allOrders.filter((order) => {
-    const statusOk = currentStatus === "全部" || normalizeStatus(order.status) === currentStatus;
-    const keywordOk = !keyword || orderSearchText(order).includes(keyword);
-    return statusOk && keywordOk;
-  });
+  return allOrders
+    .filter((order) => {
+      const statusOk = currentStatus === "全部" || normalizeStatus(order.status) === currentStatus;
+      const keywordOk = !keyword || orderSearchText(order).includes(keyword);
+      return statusOk && keywordOk;
+    })
+    .sort((a, b) => (
+      Number(b.orderedAtMillis || 0) - Number(a.orderedAtMillis || 0)
+      || Number(b.rowNumber || 0) - Number(a.rowNumber || 0)
+    ));
 }
 
 function renderCounts(counts = {}) {
