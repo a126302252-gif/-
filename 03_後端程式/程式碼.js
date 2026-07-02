@@ -16,7 +16,7 @@ const SOURCE_ACCOUNTS = {
     legacyChannelAccessTokenKey: "LINE_CHANNEL_ACCESS_TOKEN"
   },
   main: {
-    sourceName: "本號 陳龍龍工作室",
+    sourceName: "DC手遊代儲官方 LINE",
     loginChannelIdKey: "LINE_LOGIN_CHANNEL_ID_MAIN",
     channelAccessTokenKey: "LINE_CHANNEL_ACCESS_TOKEN_MAIN"
   }
@@ -589,9 +589,22 @@ function isLineLoginConfigured_() {
 }
 
 function getSourceAccount_(value) {
-  const source = String(value || "").trim().toLowerCase();
-  if (source === "main" || source === "cll" || source === "official" || source === "陳龍龍工作室") return "main";
+  if (isMainSourceValue_(value)) return "main";
   return "dc";
+}
+
+function isMainSourceValue_(value) {
+  const source = String(value || "").trim().toLowerCase();
+  const compact = source.replace(/\s+/g, "");
+  return [
+    "main",
+    "cll",
+    "official",
+    "陳龍龍工作室",
+    "本號陳龍龍工作室",
+    "dc手遊代儲官方line",
+    "dc手遊代儲官方賴"
+  ].indexOf(compact) >= 0;
 }
 
 function getLineAccessToken_(sourceAccount) {
@@ -651,7 +664,7 @@ function getOrderSourceName_(source) {
   const value = String(source || "").trim();
   const normalized = value.toLowerCase();
   if (!value) return "網站自助下單";
-  if (normalized === "main" || normalized === "cll" || normalized === "official" || value === "陳龍龍工作室") return SOURCE_ACCOUNTS.main.sourceName;
+  if (isMainSourceValue_(value)) return SOURCE_ACCOUNTS.main.sourceName;
   if (normalized === "dc" || value === "LINE_LIFF") return SOURCE_ACCOUNTS.dc.sourceName;
   if (value === "LINE") return "LINE自助下單";
   return value;
