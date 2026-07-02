@@ -81,7 +81,10 @@ const PRODUCT_HEADERS = [
   "方案名稱/點數",
   "價格NT$",
   "處理時間",
-  "備註"
+  "備註",
+  "3單起單價",
+  "5單起單價",
+  "其他階梯價"
 ];
 
 const GUIDE_ROWS = [
@@ -89,7 +92,7 @@ const GUIDE_ROWS = [
   ["改商品價格", "商品 分頁", "直接修改「價格NT$」欄位，網站會讀這裡的價格。"],
   ["上架新遊戲", "商品 分頁", "複製一列商品，改遊戲ID、遊戲名稱、方案ID、方案名稱、價格，啟用保持 TRUE。"],
   ["新增同遊戲方案", "商品 分頁", "複製同一個遊戲的一列，只改方案ID、方案名稱、價格、處理時間。"],
-  ["設定多單優惠", "商品 分頁", "在「備註」欄填階梯價，例如：階梯價:3=2570,5=2550。網站會顯示給客人，後端也會照這個金額核算。"],
+  ["設定多單優惠", "商品 分頁", "直接填「3單起單價」與「5單起單價」。例如 3單起填 2570、5單起填 2550，客人買 6 單會自動用 5單起單價。"],
   ["更換遊戲圖片", "商品 分頁", "把圖片連結貼到「遊戲圖片網址」欄位；同一款遊戲每列貼同一張即可。"],
   ["暫時下架商品", "商品 分頁", "把該列「啟用」改成 FALSE，網站就不會顯示。"],
   ["看客人訂單", "訂單 分頁", "新訂單會自動出現在最下面，包含訂單編號、LINE名稱、商品、金額、付款方式。"],
@@ -107,7 +110,10 @@ const PRODUCT_HEADER_NOTES = [
   "客人看到的方案名稱，例如 60 UC。",
   "這格就是網站價格，只填數字。",
   "例如 10-30 分鐘、確認後處理。",
-  "給自己看的備註或顯示在方案上的小備註；可填階梯價:3=2570,5=2550 設定多單優惠。"
+  "給自己看的備註或顯示在方案上的小備註。",
+  "選填，只填數字。例如 2570，代表數量 3 以上每單 2570。",
+  "選填，只填數字。例如 2550，代表數量 5 以上每單 2550。",
+  "選填，格式例如 6=2530,10=2500。平常不用填。"
 ];
 
 const PAYMENT_REPLY_HEADERS = [
@@ -668,6 +674,38 @@ function parseQuantityTierRules_(note) {
   return rules;
 }
 
+function normalizeQuantityTierRules_(rules) {
+  const byMinQty = {};
+  (Array.isArray(rules) ? rules : []).forEach((rule) => {
+    const minQty = Number(rule && rule.minQty);
+    const unitPrice = Number(rule && rule.unitPrice);
+    if (Number.isFinite(minQty) && minQty > 1 && Number.isFinite(unitPrice) && unitPrice > 0) {
+      byMinQty[minQty] = { minQty, unitPrice };
+    }
+  });
+  return Object.keys(byMinQty)
+    .map((key) => byMinQty[key])
+    .sort((a, b) => Number(a.minQty) - Number(b.minQty));
+}
+
+function parseTierPriceCell_(value) {
+  const price = Number(String(value || "").replace(/[^\d.]/g, ""));
+  return Number.isFinite(price) && price > 0 ? price : 0;
+}
+
+function parseQuantityTierRulesFromFields_(tier3Price, tier5Price, otherRulesText) {
+  const rules = parseQuantityTierRules_(otherRulesText);
+  const price3 = parseTierPriceCell_(tier3Price);
+  const price5 = parseTierPriceCell_(tier5Price);
+  if (price3 > 0) rules.push({ minQty: 3, unitPrice: price3 });
+  if (price5 > 0) rules.push({ minQty: 5, unitPrice: price5 });
+  return normalizeQuantityTierRules_(rules);
+}
+
+function getProductRowQuantityTierRules_(row) {
+  return parseQuantityTierRulesFromFields_(row[10], row[11], row[12]);
+}
+
 function getDefaultQuantityTierRules_(product) {
   const gameText = String((product && (product.gameId + " " + product.gameName)) || "").toLowerCase();
   const planName = String((product && product.planName) || "");
@@ -679,7 +717,6 @@ function getDefaultQuantityTierRules_(product) {
   if (
     Number(product && product.price || 0) === 2550
     && /日韓/.test(planName)
-    && !/國際/.test(planName)
   ) {
     return [{ minQty: 5, unitPrice: 2500 }];
   }
@@ -688,7 +725,8 @@ function getDefaultQuantityTierRules_(product) {
 
 function getQuantityTierRules_(product) {
   const basePrice = Number(product && product.price || 0);
-  const configuredRules = parseQuantityTierRules_(product && product.note);
+  const fieldRules = normalizeQuantityTierRules_(product && product.quantityTiers);
+  const configuredRules = fieldRules.length ? fieldRules : parseQuantityTierRules_(product && product.note);
   const rules = configuredRules.length
     ? configuredRules
     : getDefaultQuantityTierRules_(product);
@@ -783,6 +821,7 @@ function getProductData_() {
     const price = Number(row[7] || 0);
     const eta = String(row[8] || "確認後處理").trim();
     const note = String(row[9] || "").trim();
+    const quantityTiers = getProductRowQuantityTierRules_(row);
     const region = "";
     const badge = "";
     const icon = String(gameName || "G").slice(0, 1);
@@ -810,7 +849,7 @@ function getProductData_() {
       };
     }
 
-    buildCatalogPlansFromProductRow_(rows, gameId, gameName, planId, planName, price, eta, note)
+    buildCatalogPlansFromProductRow_(rows, gameId, gameName, planId, planName, price, eta, note, quantityTiers)
       .forEach((catalogPlan) => {
         const duplicateCount = gameMap[gameId].plans.filter((plan) => plan.id === catalogPlan.id || plan.name === catalogPlan.name).length;
         gameMap[gameId].plans.push({
@@ -820,6 +859,7 @@ function getProductData_() {
           price: catalogPlan.price,
           eta: catalogPlan.eta,
           note: catalogPlan.note,
+          quantityTiers: catalogPlan.quantityTiers || [],
           active: true
         });
       });
@@ -868,9 +908,9 @@ function hasExplicitRegionPlan_(rows, gameId, amountKey, regionLabel) {
   });
 }
 
-function getTaiwanPriceForAmount_(rows, gameId, amountKey, fallbackPrice) {
-  if (!amountKey) return fallbackPrice;
-  const match = rows.find((row) => {
+function getTaiwanProductRowForAmount_(rows, gameId, amountKey) {
+  if (!amountKey) return null;
+  return rows.find((row) => {
     if (!isActiveProductRow_(row)) return false;
     const rowGameId = String(row[2] || "").trim();
     const rowPlanName = String(row[6] || "").trim();
@@ -880,7 +920,11 @@ function getTaiwanPriceForAmount_(rows, gameId, amountKey, fallbackPrice) {
       && getProductAmountKey_(rowPlanName) === amountKey
       && Number.isFinite(rowPrice)
       && rowPrice > 0;
-  });
+  }) || null;
+}
+
+function getTaiwanPriceForAmount_(rows, gameId, amountKey, fallbackPrice) {
+  const match = getTaiwanProductRowForAmount_(rows, gameId, amountKey);
   return match ? Number(match[7] || fallbackPrice) : fallbackPrice;
 }
 
@@ -890,21 +934,24 @@ function createRegionPlanId_(planId, regionKey) {
   return `${source}-${regionKey}`;
 }
 
-function buildCatalogPlansFromProductRow_(rows, gameId, gameName, planId, planName, price, eta, note) {
+function buildCatalogPlansFromProductRow_(rows, gameId, gameName, planId, planName, price, eta, note, quantityTiers) {
   if (!isPubgmIntlJpCombinedPlan_(gameId, gameName, planName)) {
-    return [{ id: planId, sourcePlanId: planId, name: planName, price, eta, note }];
+    return [{ id: planId, sourcePlanId: planId, name: planName, price, eta, note, quantityTiers: quantityTiers || [] }];
   }
 
   const amountKey = getProductAmountKey_(planName);
+  const taiwanRow = getTaiwanProductRowForAmount_(rows, gameId, amountKey);
+  const taiwanQuantityTiers = taiwanRow ? getProductRowQuantityTierRules_(taiwanRow) : [];
   const plans = [];
   if (!hasExplicitRegionPlan_(rows, gameId, amountKey, "國際")) {
     plans.push({
       id: createRegionPlanId_(planId, "intl"),
       sourcePlanId: planId,
       name: planName.replace(/國際\s*[\/／]\s*日韓/g, "國際"),
-      price: getTaiwanPriceForAmount_(rows, gameId, amountKey, price),
+      price: taiwanRow ? Number(taiwanRow[7] || price) : price,
       eta,
-      note
+      note,
+      quantityTiers: taiwanQuantityTiers
     });
   }
   if (!hasExplicitRegionPlan_(rows, gameId, amountKey, "日韓")) {
@@ -914,7 +961,8 @@ function buildCatalogPlansFromProductRow_(rows, gameId, gameName, planId, planNa
       name: planName.replace(/國際\s*[\/／]\s*日韓/g, "日韓"),
       price,
       eta,
-      note
+      note,
+      quantityTiers: quantityTiers || []
     });
   }
   return plans;
@@ -937,6 +985,7 @@ function getProductSheet_() {
     sheet.autoResizeColumns(1, PRODUCT_HEADERS.length);
   }
 
+  applyDefaultQuantityTierColumns_(sheet);
   formatSheetHeader_(sheet, PRODUCT_HEADERS.length, "#111827");
   formatProductSheet_(sheet);
 
@@ -1039,6 +1088,7 @@ function migrateProductSheetToSimple_(sheet) {
 
 function toSimpleProductRow_(row) {
   if (row.length === PRODUCT_HEADERS.length) return row;
+  if (row.length === 10) return row.concat(["", "", ""]);
 
   return [
     normalizeProductActive_(row[0]),
@@ -1050,7 +1100,10 @@ function toSimpleProductRow_(row) {
     row[11] || "",
     row[12] || "",
     row[13] || "確認後處理",
-    row[14] || ""
+    row[14] || "",
+    "",
+    "",
+    ""
   ];
 }
 
@@ -1067,7 +1120,7 @@ function normalizeProductActive_(value) {
 
 function formatProductSheet_(sheet) {
   const lastRow = Math.max(1, sheet.getLastRow());
-  const widths = [70, 100, 105, 130, 260, 130, 160, 90, 120, 220];
+  const widths = [70, 100, 105, 130, 260, 130, 160, 90, 120, 220, 105, 105, 180];
   widths.forEach((width, index) => sheet.setColumnWidth(index + 1, width));
   sheet.getRange(1, 1, lastRow, PRODUCT_HEADERS.length)
     .setWrap(true)
@@ -1079,6 +1132,48 @@ function formatProductSheet_(sheet) {
   } catch (error) {
     // Existing filters are fine.
   }
+}
+
+function applyDefaultQuantityTierColumns_(sheet) {
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const initializedKey = "PRODUCT_TIER_COLUMNS_INITIALIZED_V1";
+  if (scriptProperties.getProperty(initializedKey) === "1") return;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    scriptProperties.setProperty(initializedKey, "1");
+    return;
+  }
+
+  const range = sheet.getRange(2, 1, lastRow - 1, PRODUCT_HEADERS.length);
+  const rows = range.getValues();
+  let changed = false;
+
+  rows.forEach((row) => {
+    if (parseTierPriceCell_(row[10]) > 0 || parseTierPriceCell_(row[11]) > 0 || String(row[12] || "").trim()) return;
+    const defaults = getDefaultQuantityTierRules_({
+      gameId: row[2],
+      gameName: row[3],
+      planName: row[6],
+      price: row[7]
+    });
+    defaults.forEach((rule) => {
+      if (Number(rule.minQty) === 3) {
+        row[10] = Number(rule.unitPrice);
+        changed = true;
+      } else if (Number(rule.minQty) === 5) {
+        row[11] = Number(rule.unitPrice);
+        changed = true;
+      } else {
+        const current = String(row[12] || "").trim();
+        row[12] = current ? `${current},${rule.minQty}=${rule.unitPrice}` : `${rule.minQty}=${rule.unitPrice}`;
+        changed = true;
+      }
+    });
+  });
+
+  if (changed) range.setValues(rows);
+  scriptProperties.setProperty(initializedKey, "1");
 }
 
 function migrateProductImageColumn_(sheet) {

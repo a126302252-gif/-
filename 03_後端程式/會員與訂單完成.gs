@@ -179,7 +179,7 @@ const MEMBERSHIP_LEVEL_SETTING_KEYS = [
 const MEMBERSHIP_DISCOUNTS_PAUSED = true;
 
 const PENDING_NOTIFICATION_PREFIX = "PENDING_ORDER_NOTIFICATION_";
-const PRODUCT_CATALOG_CACHE_KEY = "CLL_PRODUCT_CATALOG_V3";
+const PRODUCT_CATALOG_CACHE_KEY = "CLL_PRODUCT_CATALOG_V4";
 const LINE_MEMBER_CACHE_PREFIX = "CLL_LINE_MEMBER_";
 const ADMIN_SESSION_PROPERTY_PREFIX = "CLL_ADMIN_SESSION_";
 const ADMIN_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -2099,6 +2099,24 @@ function parseQuantityTierRules_(note) {
   return rules;
 }
 
+function normalizeQuantityTierRules_(rules) {
+  const byMinQty = {};
+  (Array.isArray(rules) ? rules : []).forEach(function (rule) {
+    const minQty = Number(rule && rule.minQty);
+    const unitPrice = Number(rule && rule.unitPrice);
+    if (Number.isFinite(minQty) && minQty > 1 && Number.isFinite(unitPrice) && unitPrice > 0) {
+      byMinQty[minQty] = { minQty: minQty, unitPrice: unitPrice };
+    }
+  });
+  return Object.keys(byMinQty)
+    .map(function (key) {
+      return byMinQty[key];
+    })
+    .sort(function (a, b) {
+      return Number(a.minQty) - Number(b.minQty);
+    });
+}
+
 function isBundlePlanName_(name) {
   return /(?:\*|x|X|×)\s*\d+/.test(String(name || ""));
 }
@@ -2116,7 +2134,6 @@ function getDefaultQuantityTierRules_(product) {
   if (
     Number(product && product.price || 0) === 2550
     && /日韓/.test(planName)
-    && !/國際/.test(planName)
   ) {
     return [{ minQty: 5, unitPrice: 2500 }];
   }
@@ -2125,7 +2142,8 @@ function getDefaultQuantityTierRules_(product) {
 
 function getQuantityTierRules_(product) {
   const basePrice = Number(product && product.price || 0);
-  const configuredRules = parseQuantityTierRules_(product && product.note);
+  const fieldRules = normalizeQuantityTierRules_(product && product.quantityTiers);
+  const configuredRules = fieldRules.length ? fieldRules : parseQuantityTierRules_(product && product.note);
   const rules = configuredRules.length
     ? configuredRules
     : getDefaultQuantityTierRules_(product);
@@ -2183,7 +2201,7 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
   const sheet = spreadsheet.getSheetByName(PRODUCT_SHEET_NAME);
   if (!sheet || sheet.getLastRow() <= 1) return null;
 
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues();
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, PRODUCT_HEADERS.length).getValues();
   const requestedGameId = String(gameId || "").trim();
   const requestedPlanId = String(planId || "").trim();
   const requestedBasePlanId = requestedPlanId.replace(/__\d+$/, "");
@@ -2213,7 +2231,8 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
       rowPlanName,
       price,
       String(row[8] || "").trim(),
-      String(row[9] || "").trim()
+      String(row[9] || "").trim(),
+      getProductRowQuantityTierRules_(row)
     ).forEach(function (catalogPlan) {
       activePlans.push({
         gameId: rowGameId,
@@ -2222,7 +2241,8 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
         sourcePlanId: catalogPlan.sourcePlanId,
         planName: catalogPlan.name,
         price: catalogPlan.price,
-        note: catalogPlan.note
+        note: catalogPlan.note,
+        quantityTiers: catalogPlan.quantityTiers || []
       });
     });
   }

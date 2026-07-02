@@ -268,6 +268,9 @@ function getPublicPlanNote(plan) {
 }
 
 function parseQuantityTierRules(plan) {
+  const fieldRules = normalizeQuantityTierRules(plan?.quantityTiers);
+  if (fieldRules.length) return fieldRules;
+
   const note = String(plan?.note || "");
   if (!/(階梯價|數量優惠|tier|bulk)\s*[:：]/i.test(note)) return [];
   const rules = [];
@@ -280,7 +283,19 @@ function parseQuantityTierRules(plan) {
       rules.push({ minQty, unitPrice });
     }
   }
-  return rules;
+  return normalizeQuantityTierRules(rules);
+}
+
+function normalizeQuantityTierRules(rules) {
+  const byMinQty = {};
+  (Array.isArray(rules) ? rules : []).forEach((rule) => {
+    const minQty = Number(rule?.minQty);
+    const unitPrice = Number(rule?.unitPrice);
+    if (Number.isFinite(minQty) && minQty > 1 && Number.isFinite(unitPrice) && unitPrice > 0) {
+      byMinQty[minQty] = { minQty, unitPrice };
+    }
+  });
+  return Object.values(byMinQty).sort((a, b) => Number(a.minQty) - Number(b.minQty));
 }
 
 function getDefaultQuantityTierRules(game, plan) {
@@ -294,7 +309,6 @@ function getDefaultQuantityTierRules(game, plan) {
   if (
     Number(plan?.price || 0) === 2550
     && /日韓/.test(planName)
-    && !/國際/.test(planName)
   ) {
     return [{ minQty: 5, unitPrice: 2500 }];
   }
