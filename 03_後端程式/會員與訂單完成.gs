@@ -216,6 +216,21 @@ function configureDiscordWebhookProperties(payload) {
   };
 }
 
+function configureAdminPasswordHash(payload) {
+  const input = typeof payload === "string" ? { hash: payload } : (payload || {});
+  const hash = String(input.hash || input.ADMIN_PASSWORD_SHA256 || "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(hash)) {
+    throw new Error("ADMIN_PASSWORD_SHA256 is missing or invalid.");
+  }
+  const properties = PropertiesService.getScriptProperties();
+  properties.setProperty("ADMIN_PASSWORD_SHA256", hash);
+  properties.deleteProperty("ADMIN_PASSWORD");
+  return {
+    ok: true,
+    saved: ["ADMIN_PASSWORD_SHA256"]
+  };
+}
+
 const WORKFLOW_ORDER_STATUSES = [
   "訂單成立",
   "已驗證",
