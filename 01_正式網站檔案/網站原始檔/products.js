@@ -39,10 +39,14 @@ window.STUDIO_DATA = {
         { id: "pubgm-login-tw-1800", name: "台服 1800 UC", price: 720, eta: "5-15 分鐘" },
         { id: "pubgm-login-tw-3850", name: "台服 3850 UC", price: 1400, eta: "5-15 分鐘" },
         { id: "pubgm-login-tw-8100", name: "台服 8100 UC", price: 2600, eta: "5-15 分鐘" },
-        { id: "pubgm-login-intljp-660", name: "國際/日韓 660 UC", price: 300, eta: "5-15 分鐘" },
-        { id: "pubgm-login-intljp-1800", name: "國際/日韓 1800 UC", price: 720, eta: "5-15 分鐘" },
-        { id: "pubgm-login-intljp-3850", name: "國際/日韓 3850 UC", price: 1350, eta: "5-15 分鐘" },
-        { id: "pubgm-login-intljp-8100", name: "國際/日韓 8100 UC", price: 2550, eta: "5-15 分鐘" }
+        { id: "pubgm-login-intl-660", sourcePlanId: "pubgm-login-intljp-660", name: "國際 660 UC", price: 300, eta: "5-15 分鐘" },
+        { id: "pubgm-login-intl-1800", sourcePlanId: "pubgm-login-intljp-1800", name: "國際 1800 UC", price: 720, eta: "5-15 分鐘" },
+        { id: "pubgm-login-intl-3850", sourcePlanId: "pubgm-login-intljp-3850", name: "國際 3850 UC", price: 1400, eta: "5-15 分鐘" },
+        { id: "pubgm-login-intl-8100", sourcePlanId: "pubgm-login-intljp-8100", name: "國際 8100 UC", price: 2600, eta: "5-15 分鐘" },
+        { id: "pubgm-login-jp-660", sourcePlanId: "pubgm-login-intljp-660", name: "日韓 660 UC", price: 300, eta: "5-15 分鐘" },
+        { id: "pubgm-login-jp-1800", sourcePlanId: "pubgm-login-intljp-1800", name: "日韓 1800 UC", price: 720, eta: "5-15 分鐘" },
+        { id: "pubgm-login-jp-3850", sourcePlanId: "pubgm-login-intljp-3850", name: "日韓 3850 UC", price: 1350, eta: "5-15 分鐘" },
+        { id: "pubgm-login-jp-8100", sourcePlanId: "pubgm-login-intljp-8100", name: "日韓 8100 UC", price: 2550, eta: "5-15 分鐘" }
       ]
     },
     {

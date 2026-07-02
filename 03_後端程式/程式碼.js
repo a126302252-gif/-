@@ -810,16 +810,19 @@ function getProductData_() {
       };
     }
 
-    const duplicateCount = gameMap[gameId].plans.filter((plan) => plan.sourcePlanId === planId || plan.id === planId).length;
-    gameMap[gameId].plans.push({
-      id: duplicateCount ? `${planId}__${duplicateCount + 1}` : planId,
-      sourcePlanId: planId,
-      name: planName,
-      price,
-      eta,
-      note,
-      active: true
-    });
+    buildCatalogPlansFromProductRow_(rows, gameId, gameName, planId, planName, price, eta, note)
+      .forEach((catalogPlan) => {
+        const duplicateCount = gameMap[gameId].plans.filter((plan) => plan.id === catalogPlan.id || plan.name === catalogPlan.name).length;
+        gameMap[gameId].plans.push({
+          id: duplicateCount ? `${catalogPlan.id}__${duplicateCount + 1}` : catalogPlan.id,
+          sourcePlanId: catalogPlan.sourcePlanId,
+          name: catalogPlan.name,
+          price: catalogPlan.price,
+          eta: catalogPlan.eta,
+          note: catalogPlan.note,
+          active: true
+        });
+      });
   });
 
   return {
@@ -830,6 +833,91 @@ function getProductData_() {
 
 function isLegacyBundleProductPlan_(planName) {
   return /8100\s*(?:\*|x|X|×)\s*\d+/i.test(String(planName || ""));
+}
+
+function isActiveProductRow_(row) {
+  return row[0] === true
+    || String(row[0]).toUpperCase() === "TRUE"
+    || String(row[0]).trim() === "1"
+    || String(row[0]).trim() === "啟用";
+}
+
+function getProductAmountKey_(planName) {
+  const match = String(planName || "").match(/(\d[\d,]*)\s*(?:UC|三角幣)?/i);
+  return match ? String(match[1] || "").replace(/,/g, "") : "";
+}
+
+function isPubgmIntlJpCombinedPlan_(gameId, gameName, planName) {
+  const gameText = `${gameId || ""} ${gameName || ""}`.toLowerCase();
+  const name = String(planName || "");
+  return gameText.indexOf("pubgm") >= 0
+    && (gameText.indexOf("login") >= 0 || gameText.indexOf("上號") >= 0)
+    && /國際\s*[\/／]\s*日韓/.test(name);
+}
+
+function hasExplicitRegionPlan_(rows, gameId, amountKey, regionLabel) {
+  if (!amountKey) return false;
+  return rows.some((row) => {
+    if (!isActiveProductRow_(row)) return false;
+    const rowGameId = String(row[2] || "").trim();
+    const rowPlanName = String(row[6] || "").trim();
+    return rowGameId === gameId
+      && rowPlanName.indexOf(regionLabel) >= 0
+      && !/國際\s*[\/／]\s*日韓/.test(rowPlanName)
+      && getProductAmountKey_(rowPlanName) === amountKey;
+  });
+}
+
+function getTaiwanPriceForAmount_(rows, gameId, amountKey, fallbackPrice) {
+  if (!amountKey) return fallbackPrice;
+  const match = rows.find((row) => {
+    if (!isActiveProductRow_(row)) return false;
+    const rowGameId = String(row[2] || "").trim();
+    const rowPlanName = String(row[6] || "").trim();
+    const rowPrice = Number(row[7] || 0);
+    return rowGameId === gameId
+      && rowPlanName.indexOf("台服") >= 0
+      && getProductAmountKey_(rowPlanName) === amountKey
+      && Number.isFinite(rowPrice)
+      && rowPrice > 0;
+  });
+  return match ? Number(match[7] || fallbackPrice) : fallbackPrice;
+}
+
+function createRegionPlanId_(planId, regionKey) {
+  const source = String(planId || "").trim();
+  if (/intljp/i.test(source)) return source.replace(/intljp/ig, regionKey);
+  return `${source}-${regionKey}`;
+}
+
+function buildCatalogPlansFromProductRow_(rows, gameId, gameName, planId, planName, price, eta, note) {
+  if (!isPubgmIntlJpCombinedPlan_(gameId, gameName, planName)) {
+    return [{ id: planId, sourcePlanId: planId, name: planName, price, eta, note }];
+  }
+
+  const amountKey = getProductAmountKey_(planName);
+  const plans = [];
+  if (!hasExplicitRegionPlan_(rows, gameId, amountKey, "國際")) {
+    plans.push({
+      id: createRegionPlanId_(planId, "intl"),
+      sourcePlanId: planId,
+      name: planName.replace(/國際\s*[\/／]\s*日韓/g, "國際"),
+      price: getTaiwanPriceForAmount_(rows, gameId, amountKey, price),
+      eta,
+      note
+    });
+  }
+  if (!hasExplicitRegionPlan_(rows, gameId, amountKey, "日韓")) {
+    plans.push({
+      id: createRegionPlanId_(planId, "jp"),
+      sourcePlanId: planId,
+      name: planName.replace(/國際\s*[\/／]\s*日韓/g, "日韓"),
+      price,
+      eta,
+      note
+    });
+  }
+  return plans;
 }
 
 function getProductSheet_() {

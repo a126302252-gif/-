@@ -180,9 +180,9 @@ function normalizeCatalog(source) {
     .filter((game) => game && game.active !== false && game.id !== PAYMENT_SETTINGS_GAME_ID)
     .map((game) => ({
       ...game,
-      plans: normalizePlanEntries(Array.isArray(game.plans)
+      plans: sortPlanEntriesForDisplay(normalizePlanEntries(Array.isArray(game.plans)
         ? game.plans.filter((plan) => plan && plan.active !== false && !isLegacyBundlePlan(plan))
-        : [])
+        : []))
     }))
     .filter((game) => game.plans.length);
 
@@ -197,8 +197,9 @@ function normalizeCatalog(source) {
 function normalizePlanEntries(plans) {
   const seen = {};
   return plans.map((plan, index) => {
-    const sourcePlanId = String(plan?.sourcePlanId || plan?.id || `plan-${index + 1}`).trim();
-    const baseId = sourcePlanId || `plan-${index + 1}`;
+    const rawId = String(plan?.id || "").trim();
+    const sourcePlanId = String(plan?.sourcePlanId || rawId || `plan-${index + 1}`).trim();
+    const baseId = rawId || sourcePlanId || `plan-${index + 1}`;
     const key = baseId.toLowerCase();
     seen[key] = (seen[key] || 0) + 1;
     return {
@@ -207,6 +208,30 @@ function normalizePlanEntries(plans) {
       sourcePlanId: baseId
     };
   });
+}
+
+function sortPlanEntriesForDisplay(plans) {
+  if (!plans.some((plan) => getPlanRegionRank(plan) < 9)) return plans;
+  return [...plans].sort((a, b) => {
+    const regionDiff = getPlanRegionRank(a) - getPlanRegionRank(b);
+    if (regionDiff) return regionDiff;
+    const amountDiff = getPlanAmountForSort(a) - getPlanAmountForSort(b);
+    if (amountDiff) return amountDiff;
+    return Number(a.price || 0) - Number(b.price || 0);
+  });
+}
+
+function getPlanRegionRank(plan) {
+  const name = String(plan?.name || "");
+  if (name.includes("台服")) return 0;
+  if (name.includes("國際")) return 1;
+  if (name.includes("日韓")) return 2;
+  return 9;
+}
+
+function getPlanAmountForSort(plan) {
+  const match = String(plan?.name || "").match(/(\d[\d,]*)/);
+  return match ? Number(String(match[1]).replace(/,/g, "")) : Number.MAX_SAFE_INTEGER;
 }
 
 function getPlanBundleInfo(plan) {

@@ -2205,13 +2205,25 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
     const rowPlanName = String(row[6] || "").trim();
     const price = Number(row[7] || 0);
     if (!rowGameId || !rowGameName || !rowPlanId || !rowPlanName || !Number.isFinite(price) || price <= 0) continue;
-    activePlans.push({
-      gameId: rowGameId,
-      gameName: rowGameName,
-      planId: rowPlanId,
-      planName: rowPlanName,
-      price: price,
-      note: String(row[9] || "").trim()
+    buildCatalogPlansFromProductRow_(
+      rows,
+      rowGameId,
+      rowGameName,
+      rowPlanId,
+      rowPlanName,
+      price,
+      String(row[8] || "").trim(),
+      String(row[9] || "").trim()
+    ).forEach(function (catalogPlan) {
+      activePlans.push({
+        gameId: rowGameId,
+        gameName: rowGameName,
+        planId: catalogPlan.id,
+        sourcePlanId: catalogPlan.sourcePlanId,
+        planName: catalogPlan.name,
+        price: catalogPlan.price,
+        note: catalogPlan.note
+      });
     });
   }
 
@@ -2220,7 +2232,12 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
   }) || activePlans.find(function (item) {
     return item.gameName === requestedGameName && item.planName === requestedProductName;
   }) || activePlans.find(function (item) {
-    return (item.planId === requestedPlanId || item.planId === requestedBasePlanId) && (
+    return (
+      item.planId === requestedPlanId
+      || item.planId === requestedBasePlanId
+      || item.sourcePlanId === requestedPlanId
+      || item.sourcePlanId === requestedBasePlanId
+    ) && (
       item.gameId === requestedGameId
       || !requestedGameId
       || requestedGameId === "delta-uid"
