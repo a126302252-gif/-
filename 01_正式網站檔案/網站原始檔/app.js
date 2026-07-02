@@ -62,6 +62,7 @@ const planPicker = document.querySelector("#planPicker");
 const planPickerButton = document.querySelector("#planPickerButton");
 const planPickerMenu = document.querySelector("#planPickerMenu");
 const quantity = document.querySelector("#quantity");
+const quantityTierHint = document.querySelector("#quantityTierHint");
 const serverName = document.querySelector("#serverName");
 const playerId = document.querySelector("#playerId");
 const playerName = document.querySelector("#playerName");
@@ -179,7 +180,9 @@ function normalizeCatalog(source) {
     .filter((game) => game && game.active !== false && game.id !== PAYMENT_SETTINGS_GAME_ID)
     .map((game) => ({
       ...game,
-      plans: normalizePlanEntries(Array.isArray(game.plans) ? game.plans.filter((plan) => plan && plan.active !== false) : [])
+      plans: normalizePlanEntries(Array.isArray(game.plans)
+        ? game.plans.filter((plan) => plan && plan.active !== false && !isLegacyBundlePlan(plan))
+        : [])
     }))
     .filter((game) => game.plans.length);
 
@@ -224,6 +227,11 @@ function formatPlanDisplayName(plan) {
   const bundle = getPlanBundleInfo(plan);
   if (!bundle) return rawName;
   return `${bundle.baseName} ×${bundle.count}單優惠`;
+}
+
+function isLegacyBundlePlan(plan) {
+  const name = String(plan?.name || "");
+  return /8100\s*(?:\*|x|X|×)\s*\d+/i.test(name);
 }
 
 function getPublicPlanNote(plan) {
@@ -289,6 +297,23 @@ function getApplicableQuantityTier(game, plan, qty) {
 function getQuantityTierHint(game, plan) {
   const rules = getQuantityTierRules(game, plan);
   return rules.map((rule) => `${rule.minQty}單起 ${currency.format(rule.unitPrice)}/單`).join("｜");
+}
+
+function renderQuantityTierHint(game, plan, qty, pricing) {
+  if (!quantityTierHint) return;
+  const hint = getQuantityTierHint(game, plan);
+  if (!hint) {
+    quantityTierHint.hidden = true;
+    quantityTierHint.textContent = "";
+    quantityTierHint.classList.remove("active");
+    return;
+  }
+  const activeText = pricing?.quantityDiscountLabel
+    ? `${pricing.quantityDiscountLabel}，已省 ${currency.format(pricing.quantityDiscountAmount || 0)}`
+    : "";
+  quantityTierHint.textContent = activeText || `多單優惠：${hint}`;
+  quantityTierHint.hidden = false;
+  quantityTierHint.classList.toggle("active", Boolean(activeText));
 }
 
 function getPlanSupportText(plan, game, fallback = "確認訂單後處理") {
@@ -1370,6 +1395,7 @@ function updateSummary() {
 
   const qty = Math.max(1, Number(quantity.value || 1));
   const pricing = getOrderPricing(plan, qty, game);
+  renderQuantityTierHint(game, plan, qty, pricing);
   summaryGame.textContent = game.name;
   summaryPlan.textContent = formatPlanDisplayName(plan);
   summaryEta.textContent = plan.eta;

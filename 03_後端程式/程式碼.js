@@ -89,6 +89,7 @@ const GUIDE_ROWS = [
   ["改商品價格", "商品 分頁", "直接修改「價格NT$」欄位，網站會讀這裡的價格。"],
   ["上架新遊戲", "商品 分頁", "複製一列商品，改遊戲ID、遊戲名稱、方案ID、方案名稱、價格，啟用保持 TRUE。"],
   ["新增同遊戲方案", "商品 分頁", "複製同一個遊戲的一列，只改方案ID、方案名稱、價格、處理時間。"],
+  ["設定多單優惠", "商品 分頁", "在「備註」欄填階梯價，例如：階梯價:3=2570,5=2550。網站會顯示給客人，後端也會照這個金額核算。"],
   ["更換遊戲圖片", "商品 分頁", "把圖片連結貼到「遊戲圖片網址」欄位；同一款遊戲每列貼同一張即可。"],
   ["暫時下架商品", "商品 分頁", "把該列「啟用」改成 FALSE，網站就不會顯示。"],
   ["看客人訂單", "訂單 分頁", "新訂單會自動出現在最下面，包含訂單編號、LINE名稱、商品、金額、付款方式。"],
@@ -106,7 +107,7 @@ const PRODUCT_HEADER_NOTES = [
   "客人看到的方案名稱，例如 60 UC。",
   "這格就是網站價格，只填數字。",
   "例如 10-30 分鐘、確認後處理。",
-  "給自己看的備註或顯示在方案上的小備註。"
+  "給自己看的備註或顯示在方案上的小備註；可填階梯價:3=2570,5=2550 設定多單優惠。"
 ];
 
 const PAYMENT_REPLY_HEADERS = [
@@ -789,6 +790,7 @@ function getProductData_() {
     const description = `${gameName} ${planName} 代儲`;
 
     if (!gameId || !gameName || !planId || !planName || !Number.isFinite(price) || price <= 0) return;
+    if (isLegacyBundleProductPlan_(planName)) return;
 
     if (!categories.includes(category)) categories.push(category);
 
@@ -824,6 +826,10 @@ function getProductData_() {
     categories,
     games: Object.keys(gameMap).map((key) => gameMap[key])
   };
+}
+
+function isLegacyBundleProductPlan_(planName) {
+  return /8100\s*(?:\*|x|X|×)\s*\d+/i.test(String(planName || ""));
 }
 
 function getProductSheet_() {

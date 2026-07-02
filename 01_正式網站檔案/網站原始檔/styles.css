@@ -688,6 +688,22 @@ label {
   line-height: 1.45;
 }
 
+.quantity-tier-hint {
+  display: block;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid rgba(233, 191, 105, .28);
+  border-radius: 8px;
+  background: rgba(233, 191, 105, .08);
+  color: #ffe8a8;
+}
+
+.quantity-tier-hint.active {
+  border-color: rgba(143, 213, 174, .48);
+  background: rgba(48, 117, 76, .18);
+  color: #c9f7d3;
+}
+
 .wide,
 .admin-wide,
 .verify-row {
