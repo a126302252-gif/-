@@ -661,10 +661,14 @@ function normalizeQuantity_(value) {
 function parseQuantityTierRules_(note) {
   const text = String(note || "");
   if (!/(階梯價|數量優惠|tier|bulk)\s*[:：]/i.test(text)) return [];
+  return parseQuantityTierPairs_(text);
+}
+
+function parseQuantityTierPairs_(text) {
   const rules = [];
   const regex = /(\d+)\s*(?:單|件|個|組|起)?\s*(?:=|:|：)\s*(?:NT\$?\s*)?([\d,]+)/gi;
   let match = null;
-  while ((match = regex.exec(text))) {
+  while ((match = regex.exec(String(text || "")))) {
     const minQty = Number(match[1]);
     const unitPrice = Number(String(match[2] || "").replace(/,/g, ""));
     if (Number.isFinite(minQty) && minQty > 1 && Number.isFinite(unitPrice) && unitPrice > 0) {
@@ -694,7 +698,7 @@ function parseTierPriceCell_(value) {
 }
 
 function parseQuantityTierRulesFromFields_(tier3Price, tier5Price, otherRulesText) {
-  const rules = parseQuantityTierRules_(otherRulesText);
+  const rules = parseQuantityTierRules_(otherRulesText).concat(parseQuantityTierPairs_(otherRulesText));
   const price3 = parseTierPriceCell_(tier3Price);
   const price5 = parseTierPriceCell_(tier5Price);
   if (price3 > 0) rules.push({ minQty: 3, unitPrice: price3 });
