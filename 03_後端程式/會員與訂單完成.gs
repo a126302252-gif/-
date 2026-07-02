@@ -652,7 +652,48 @@ function buildAdminOrderFromRow_(row, rowNumber) {
   });
   order.uid = identity.uid || order.uid;
   order.playerName = identity.playerName || order.playerName;
+  order.display = buildOrderDisplayFields_(order);
   return order;
+}
+
+function buildOrderDisplayFields_(order) {
+  const safeOrder = order || {};
+  const identity = getOrderPlayerIdentity_({
+    playerId: safeOrder.playerId || safeOrder.uid,
+    playerName: safeOrder.playerName,
+    notes: safeOrder.notes
+  });
+  const login = getGameLoginInfoObject_({
+    gameLoginInfo: safeOrder.gameLoginInfo || safeOrder.loginInfo,
+    notes: safeOrder.notes
+  });
+  const quantity = Number(safeOrder.quantity || 1);
+  const productName = String(safeOrder.productName || "").trim();
+  const amount = Number(safeOrder.total || safeOrder.amount || 0);
+  const status = normalizeAdminOrderStatus_(
+    safeOrder.status || safeOrder.orderStatus || safeOrder.rawStatus
+  );
+
+  return {
+    orderId: String(safeOrder.orderId || "").trim(),
+    paymentMethod: getPaymentDisplayName_(safeOrder.payment || safeOrder.paymentMethod),
+    gameName: String(safeOrder.gameName || "").trim(),
+    serverName: String(safeOrder.serverName || "").trim(),
+    uid: identity.uid || "",
+    playerName: identity.playerName || "",
+    productName: productName,
+    productWithQuantity: productName ? productName + " ×" + quantity : "",
+    quantity: quantity,
+    amount: amount,
+    amountText: "NT$ " + formatMoney_(amount),
+    status: status,
+    createdAt: safeOrder.orderedAtText || formatAdminDate_(safeOrder.orderedAt || safeOrder.createdAt),
+    loginMethod: login.method || "",
+    loginAccount: login.account || "",
+    loginPassword: login.password || "",
+    hasLoginInfo: Boolean(login.method || login.account || login.password),
+    systemNotes: String(safeOrder.notes || "").trim().slice(0, 1500)
+  };
 }
 
 function formatAdminDate_(value) {
@@ -1509,29 +1550,28 @@ function buildOrderPaymentMessage_(spreadsheet, order, accountVerification) {
 }
 
 function buildOrderSummaryLines_(order) {
-  const identity = getOrderPlayerIdentity_(order);
-  const login = getGameLoginInfoObject_(order);
+  const display = buildOrderDisplayFields_(order);
   const lines = [
     "✅ 訂單已成立",
     "",
-    "【訂單編號】：" + (order.orderId || ""),
-    "【付款方式】：" + getPaymentDisplayName_(order.payment || order.paymentMethod),
-    "【購買遊戲】：" + (order.gameName || "未填寫")
+    "【訂單編號】：" + (display.orderId || ""),
+    "【付款方式】：" + (display.paymentMethod || "未填寫"),
+    "【購買遊戲】：" + (display.gameName || "未填寫")
   ];
 
-  if (login.method || login.account || login.password) {
+  if (display.hasLoginInfo) {
     lines.push(
-      "【登入方式】：" + (login.method || "未填寫"),
-      "【帳號】：" + (login.account || "未填寫"),
-      "【密碼】：" + (login.password || "未填寫")
+      "【登入方式】：" + (display.loginMethod || "未填寫"),
+      "【帳號】：" + (display.loginAccount || "未填寫"),
+      "【密碼】：" + (display.loginPassword || "未填寫")
     );
   }
 
   lines.push(
-    "【伺服器】：" + (order.serverName || "未填寫"),
-    "【UID】：" + (identity.uid || "未填寫"),
-    "【玩家名稱】：" + (identity.playerName || "未填寫"),
-    "【購買商品】：" + ((order.productName || "未填寫") + " ×" + (order.quantity || 1))
+    "【伺服器】：" + (display.serverName || "未填寫"),
+    "【UID】：" + (display.uid || "未填寫"),
+    "【玩家名稱】：" + (display.playerName || "未填寫"),
+    "【購買商品】：" + (display.productWithQuantity || "未填寫")
   );
 
   return lines;
@@ -1929,7 +1969,7 @@ function getGameLoginInfoObject_(order) {
     account: "",
     password: ""
   };
-  const info = String(order.gameLoginInfo || extractGameLoginInfoText_(order.notes) || "")
+  const info = String(order.gameLoginInfo || order.loginInfo || extractGameLoginInfoText_(order.notes) || "")
     .replace(/\r/g, "")
     .trim();
   if (!info) return result;

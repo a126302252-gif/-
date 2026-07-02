@@ -1075,7 +1075,7 @@ function renderPubgmDetail() {
 
   document.querySelector("#detailCategory").textContent = "PUBGM 專區";
   document.querySelector("#detailName").textContent = "先選伺服器，再選儲值方式";
-  document.querySelector("#detailDesc").textContent = "商品已依台服、國際服、日韓服，以及 UID／上號儲值分開整理。";
+  document.querySelector("#detailDesc").textContent = "選好伺服器與儲值方式後即可下單。";
   catalogFilters.hidden = false;
   catalogFilters.innerHTML = `
     <div class="catalog-filter-group">

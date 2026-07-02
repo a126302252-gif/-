@@ -120,15 +120,103 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function paymentDisplayName(value) {
+  return {
+    "網銀": "網銀轉帳",
+    "無卡": "無卡存款",
+    "LINE Pay": "LINE Pay",
+    "街口": "街口支付"
+  }[value] || value || "";
+}
+
+function extractPlayerNameFromNotes(notes) {
+  const text = String(notes || "").replace(/\r/g, "").trim();
+  const match = text.match(/玩家名稱[:：]\s*([^\n]+)/);
+  return match ? match[1].trim() : "";
+}
+
+function parseLoginInfoFromNotes(notes) {
+  const result = { method: "", account: "", password: "" };
+  const text = String(notes || "").replace(/\r/g, "").trim();
+  if (!text) return result;
+  const start = text.indexOf("[上號資料]");
+  if (start < 0) return result;
+  let section = text.slice(start);
+  const end = section.indexOf("\n\n");
+  if (end >= 0) section = section.slice(0, end);
+  section.split("\n").forEach((line) => {
+    const match = String(line || "").trim().match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (!match) return;
+    const key = match[1].trim();
+    const value = match[2].trim();
+    if (key === "登入方式") result.method = value;
+    if (key === "帳號") result.account = value;
+    if (key === "密碼") result.password = value;
+  });
+  return result;
+}
+
+function buildOrderDisplayFields(order) {
+  const display = order.display || {};
+  const notes = String(display.systemNotes || order.systemNotes || order.notes || "").trim();
+  const login = parseLoginInfoFromNotes(order.loginInfo || notes);
+  const quantity = Number(display.quantity || order.quantity || 1);
+  const productName = display.productName || order.productName || "";
+  const productWithQuantity = display.productWithQuantity || (productName ? `${productName} ×${quantity}` : "");
+  const amountText = display.amountText || currency(order.total);
+
+  return {
+    orderId: display.orderId || order.orderId || "",
+    paymentMethod: display.paymentMethod || paymentDisplayName(order.paymentMethod) || "",
+    gameName: display.gameName || order.gameName || "",
+    serverName: display.serverName || order.serverName || "",
+    uid: display.uid || order.uid || "",
+    playerName: display.playerName || order.playerName || extractPlayerNameFromNotes(notes),
+    productName,
+    productWithQuantity,
+    quantity,
+    amountText,
+    status: normalizeStatus(display.status || order.status),
+    createdAt: display.createdAt || order.orderedAtText || "",
+    loginMethod: display.loginMethod || login.method,
+    loginAccount: display.loginAccount || login.account,
+    loginPassword: display.loginPassword || login.password,
+    hasLoginInfo: Boolean(display.hasLoginInfo || login.method || login.account || login.password),
+    systemNotes: notes
+  };
+}
+
+function infoRow(label, value) {
+  const text = value == null || value === "" ? "未填" : value;
+  return `
+    <div class="info-row">
+      <span class="info-label">【${escapeHtml(label)}】</span>
+      <span class="info-value">${escapeHtml(text)}</span>
+    </div>
+  `;
+}
+
+function systemNotesSection(notes) {
+  if (!String(notes || "").trim()) return "";
+  return `
+    <details class="system-notes">
+      <summary>系統紀錄</summary>
+      <pre>${escapeHtml(notes)}</pre>
+    </details>
+  `;
+}
+
 function orderSearchText(order) {
+  const display = buildOrderDisplayFields(order);
   return [
-    order.orderId,
-    order.uid,
-    order.playerName,
-    order.gameName,
-    order.productName,
-    order.serverName,
-    order.loginInfo
+    display.orderId,
+    display.uid,
+    display.playerName,
+    display.gameName,
+    display.productName,
+    display.serverName,
+    display.loginMethod,
+    display.loginAccount
   ].join(" ").toLowerCase();
 }
 
@@ -165,24 +253,28 @@ function renderOrders() {
     return;
   }
 
-  orderList.innerHTML = orders.map((order) => `
-    <button class="order-card" type="button" data-order-id="${escapeHtml(order.orderId)}">
-      <div class="order-top">
-        <span class="order-id">${escapeHtml(order.orderId)}</span>
-        <span class="status-pill ${statusClass(normalizeStatus(order.status))}">${escapeHtml(normalizeStatus(order.status))}</span>
-      </div>
-      <div class="order-title">${escapeHtml(order.gameName || "未填遊戲")}｜${escapeHtml(order.productName || "未填商品")}</div>
-      <div class="order-meta">
-        <span>數量：${escapeHtml(order.quantity || 1)}｜付款：${escapeHtml(order.paymentMethod || "未填")}</span>
-        <span>UID：${escapeHtml(order.uid || "未填")}｜玩家：${escapeHtml(order.playerName || "未填")}</span>
-        <span>區服：${escapeHtml(order.serverName || "未填")}</span>
-      </div>
-      <div class="order-bottom">
-        <span>${escapeHtml(order.orderedAtText || "")}</span>
-        <strong class="money">${escapeHtml(currency(order.total))}</strong>
-      </div>
-    </button>
-  `).join("");
+  orderList.innerHTML = orders.map((order) => {
+    const display = buildOrderDisplayFields(order);
+    return `
+      <button class="order-card" type="button" data-order-id="${escapeHtml(order.orderId)}">
+        <div class="order-card-head">
+          <span class="order-id">${escapeHtml(display.orderId || "未填訂單")}</span>
+          <span class="status-pill ${statusClass(display.status)}">${escapeHtml(display.status)}</span>
+        </div>
+        <div class="order-info-list">
+          ${infoRow("訂單編號", display.orderId)}
+          ${infoRow("付款方式", display.paymentMethod)}
+          ${infoRow("購買遊戲", display.gameName)}
+          ${infoRow("伺服器", display.serverName)}
+          ${infoRow("UID", display.uid)}
+          ${infoRow("玩家名稱", display.playerName)}
+          ${infoRow("購買商品", display.productWithQuantity)}
+          ${infoRow("金額", display.amountText)}
+          ${infoRow("狀態", display.status)}
+        </div>
+      </button>
+    `;
+  }).join("");
 }
 
 function detailItem(label, value) {
@@ -197,25 +289,31 @@ function detailItem(label, value) {
 
 function openOrderDetail(order) {
   selectedOrder = order;
-  detailTitle.textContent = order.orderId || "訂單詳情";
-  detailGrid.innerHTML = [
-    detailItem("訂單編號", order.orderId),
-    detailItem("目前狀態", normalizeStatus(order.status)),
-    detailItem("下單時間", order.orderedAtText),
-    detailItem("客人 LINE", order.customerLine),
-    detailItem("遊戲", order.gameName),
-    detailItem("商品 / 方案", order.productName),
-    detailItem("數量", order.quantity),
-    detailItem("金額", currency(order.total)),
-    detailItem("付款方式", order.paymentMethod),
-    detailItem("UID", order.uid),
-    detailItem("玩家名稱", order.playerName),
-    detailItem("區服", order.serverName),
-    detailItem("上號資料", order.loginInfo),
-    detailItem("備註", order.notes)
-  ].join("");
+  const display = buildOrderDisplayFields(order);
+  detailTitle.textContent = display.orderId || "訂單詳情";
+  const detailRows = [
+    detailItem("訂單編號", display.orderId),
+    detailItem("付款方式", display.paymentMethod),
+    detailItem("購買遊戲", display.gameName),
+    detailItem("伺服器", display.serverName),
+    detailItem("UID", display.uid),
+    detailItem("玩家名稱", display.playerName),
+    detailItem("購買商品", display.productName),
+    detailItem("數量", display.quantity),
+    detailItem("金額", display.amountText),
+    detailItem("下單時間", display.createdAt),
+    detailItem("訂單狀態", display.status)
+  ];
+  if (display.hasLoginInfo) {
+    detailRows.push(
+      detailItem("登入方式", display.loginMethod),
+      detailItem("帳號", display.loginAccount),
+      detailItem("密碼", display.loginPassword)
+    );
+  }
+  detailGrid.innerHTML = detailRows.join("") + systemNotesSection(display.systemNotes);
 
-  const normalized = normalizeStatus(order.status);
+  const normalized = display.status;
   completeOrderButton.disabled = loading || normalized === "已完成";
   cancelOrderButton.disabled = loading || normalized === "已取消";
 
