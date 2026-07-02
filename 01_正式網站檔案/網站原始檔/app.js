@@ -1432,6 +1432,9 @@ priceList.addEventListener("click", (event) => {
   if (!planId) return;
   if (CURRENT_PAGE === "prices") {
     const target = new URL("/order", window.location.origin);
+    if (LINE_SOURCE_ACCOUNT && LINE_SOURCE_ACCOUNT !== String(window.DEFAULT_LINE_CHANNEL || "main")) {
+      target.searchParams.set("oa", LINE_SOURCE_ACCOUNT);
+    }
     target.searchParams.set("game", gameId);
     target.searchParams.set("plan", planId);
     if (gameId.includes("pubgm")) {

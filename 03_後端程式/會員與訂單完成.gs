@@ -2070,6 +2070,7 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
   const requestedGameName = String(gameName || "").trim();
   const requestedProductName = String(productName || "").trim();
 
+  const activePlans = [];
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
     const active = row[0] === true
@@ -2082,23 +2083,33 @@ function findProductPlanFast_(spreadsheet, gameId, planId, gameName, productName
     const rowGameName = String(row[3] || "").trim();
     const rowPlanId = String(row[5] || "").trim();
     const rowPlanName = String(row[6] || "").trim();
-    const gameMatches = rowGameId === requestedGameId
-      || (!requestedGameId && rowGameName === requestedGameName);
-    const planMatches = rowPlanId === requestedPlanId
-      || (!requestedPlanId && rowPlanName === requestedProductName);
     const price = Number(row[7] || 0);
-
-    if (gameMatches && planMatches && Number.isFinite(price) && price > 0) {
-      return {
-        gameId: rowGameId,
-        gameName: rowGameName,
-        planId: rowPlanId,
-        planName: rowPlanName,
-        price: price
-      };
-    }
+    if (!rowGameId || !rowGameName || !rowPlanId || !rowPlanName || !Number.isFinite(price) || price <= 0) continue;
+    activePlans.push({
+      gameId: rowGameId,
+      gameName: rowGameName,
+      planId: rowPlanId,
+      planName: rowPlanName,
+      price: price
+    });
   }
-  return null;
+
+  return activePlans.find(function (item) {
+    return item.planId === requestedPlanId && (
+      item.gameId === requestedGameId
+      || !requestedGameId
+      || requestedGameId === "delta-uid"
+      || requestedGameId === "delta-login"
+    );
+  }) || activePlans.find(function (item) {
+    return item.gameId === requestedGameId && item.planName === requestedProductName;
+  }) || activePlans.find(function (item) {
+    return item.gameName === requestedGameName && item.planId === requestedPlanId;
+  }) || activePlans.find(function (item) {
+    return item.gameName === requestedGameName && item.planName === requestedProductName;
+  }) || activePlans.find(function (item) {
+    return item.planId === requestedPlanId;
+  }) || null;
 }
 
 function findOrderRowById_(sheet, orderId) {

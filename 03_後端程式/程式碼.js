@@ -678,6 +678,7 @@ function findProductPlan_(gameId, planId, gameName, productName) {
   const requestedProductName = String(productName || "").trim();
 
   const game = data.games.find((item) => item.id === requestedGameId)
+    || data.games.find((item) => item.plans.some((plan) => plan.id === requestedPlanId))
     || data.games.find((item) => item.name === requestedGameName);
   if (!game) return null;
 
