@@ -1,10 +1,10 @@
-const ADMIN_CACHE = "cll-admin-pwa-v9";
+const ADMIN_CACHE = "cll-admin-pwa-v10";
 const ADMIN_SHELL = [
   "/admin.html",
   "/admin.css?v=20260703-admin-v4",
-  "/admin.js?v=20260703-admin-v4",
+  "/admin.js?v=20260703-credit-1",
   "/manifest.webmanifest",
-  "/assets/dragon-premium-hero.webp"
+  "/assets/admin-icon-512.png"
 ];
 
 function isAdminAsset(url) {
@@ -12,7 +12,7 @@ function isAdminAsset(url) {
     || url.pathname === "/admin.css"
     || url.pathname === "/admin.js"
     || url.pathname === "/manifest.webmanifest"
-    || url.pathname === "/assets/dragon-premium-hero.webp";
+    || url.pathname === "/assets/admin-icon-512.png";
 }
 
 self.addEventListener("install", (event) => {

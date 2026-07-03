@@ -1694,7 +1694,8 @@ async function initApp() {
 
   // 先用隨網站一起發布的商品資料呈現畫面，避免後端較慢時整頁空白。
   // 實際下單金額仍由後端商品表重新核對，遠端資料回來後再無縫更新。
-  applyCatalog(readCachedCatalog() || window.STUDIO_DATA);
+  const cachedCatalog = readCachedCatalog();
+  applyCatalog(cachedCatalog || window.STUDIO_DATA);
   renderCatalogView();
   if (CURRENT_PAGE !== "prices") {
     const startLineMember = () => initLineMember();
@@ -1707,6 +1708,7 @@ async function initApp() {
     }
   }
   if (CURRENT_PAGE === "member") return;
+  if (cachedCatalog) return;
 
   await new Promise((resolve) => {
     if (typeof window.requestIdleCallback === "function") {

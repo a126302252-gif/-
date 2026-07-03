@@ -2,6 +2,8 @@ const ADMIN_ENDPOINT = "https://script.google.com/macros/s/AKfycbwDT3asNWUlAHI3D
 const ADMIN_PROXY_ENDPOINT = "/.netlify/functions/admin-api";
 const ADMIN_TOKEN_KEY = "cll_admin_session_v1";
 const ADMIN_STATUS_TABS = ["訂單成立", "已付款", "已完成", "已取消", "全部"];
+const ADMIN_PROXY_FALLBACK_ERRORS = new Set(["PROXY_FAILED", "TIMEOUT", "BAD_RESPONSE", "NETWORK_ERROR"]);
+const ADMIN_MUTATION_ACTIONS = new Set(["updateOrderStatus", "sendDiscordStatusNotify"]);
 
 let adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) || "";
 let currentStatus = "訂單成立";
@@ -129,11 +131,11 @@ async function adminProxyApi(action, payload = {}, timeoutMs = 20000) {
 }
 
 async function adminApi(action, payload = {}, timeoutMs = 20000) {
-  const proxyResponse = await adminProxyApi(action, payload, timeoutMs);
-  if (proxyResponse.ok || !["PROXY_FAILED", "TIMEOUT", "BAD_RESPONSE"].includes(proxyResponse.error)) {
-    return proxyResponse;
+  const directResponse = await adminJsonpApi(action, payload, timeoutMs);
+  if (directResponse.ok || ADMIN_MUTATION_ACTIONS.has(action) || !ADMIN_PROXY_FALLBACK_ERRORS.has(directResponse.error)) {
+    return directResponse;
   }
-  return adminJsonpApi(action, payload, timeoutMs);
+  return adminProxyApi(action, payload, timeoutMs);
 }
 
 async function sha256Hex(value) {
