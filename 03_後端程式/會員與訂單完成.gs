@@ -65,6 +65,8 @@ const ORDER_FEATURE_STATUS_COLUMN = 13;
 const ORDER_FEATURE_TOTAL_COLUMN = 9;
 const ORDER_FEATURE_PAYMENT_METHOD_COLUMN = 10;
 const ORDER_FEATURE_LINE_USER_ID_COLUMN = 15;
+const ADMIN_LIST_LIMIT_DEFAULT = 80;
+const ADMIN_LIST_LIMIT_MAX = 150;
 
 const WORKFLOW_ORDER_HEADERS = [
   "完成（勾選）",
@@ -579,9 +581,9 @@ function normalizeAdminStatusFilter_(value) {
 function adminListOrders_(data) {
   assertAdminSession_((data || {}).token);
   const statusFilter = normalizeAdminStatusFilter_((data || {}).status || "全部");
+  const limit = getAdminListLimit_((data || {}).limit);
   const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
   const sheet = spreadsheet.getSheetByName(SHEET_NAME) || getOrderSheet_();
-  ensureOrderWorkflowColumns_(sheet);
 
   const result = {
     "訂單成立": 0,
@@ -597,28 +599,83 @@ function adminListOrders_(data) {
   }
 
   const width = Math.max(ORDER_FEATURE_LAST_COLUMN, sheet.getLastColumn());
-  const rows = sheet.getRange(2, 1, lastRow - 1, width).getValues();
-  rows.forEach(function (row, index) {
-    const order = buildAdminOrderFromRow_(row, index + 2);
-    if (!order.orderId) return;
-    const normalizedStatus = normalizeAdminOrderStatus_(order.status);
+  const summaryRows = sheet.getRange(2, 1, lastRow - 1, ORDER_FEATURE_STATUS_COLUMN).getValues();
+  const matchedRows = [];
+  summaryRows.forEach(function (row, index) {
+    const orderId = String(row[1] || "").trim();
+    if (!orderId) return;
+    const normalizedStatus = normalizeAdminOrderStatus_(row[ORDER_FEATURE_STATUS_COLUMN - 1]);
     result[normalizedStatus] += 1;
     result["全部"] += 1;
     if (statusFilter === "全部" || normalizedStatus === statusFilter) {
-      orders.push(order);
+      matchedRows.push({
+        rowNumber: index + 2,
+        orderedAtMillis: getAdminDateMillis_(row[0]),
+        orderId: orderId
+      });
     }
   });
 
-  orders.sort(function (a, b) {
+  matchedRows.sort(function (a, b) {
     return Number(b.orderedAtMillis || 0) - Number(a.orderedAtMillis || 0)
       || Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
   });
 
+  getAdminRowsByRowNumbers_(sheet, matchedRows.slice(0, limit).map(function (item) {
+    return item.rowNumber;
+  }), width).forEach(function (item) {
+    const order = buildAdminOrderFromRow_(item.values, item.rowNumber);
+    if (order.orderId) orders.push(order);
+  });
+
   return {
     ok: true,
-    orders: orders.slice(0, 300),
-    counts: result
+    orders: orders,
+    counts: result,
+    limit: limit,
+    hasMore: matchedRows.length > orders.length,
+    totalMatched: matchedRows.length
   };
+}
+
+function getAdminListLimit_(value) {
+  const limit = Number(value || ADMIN_LIST_LIMIT_DEFAULT);
+  if (!Number.isFinite(limit) || limit <= 0) return ADMIN_LIST_LIMIT_DEFAULT;
+  return Math.min(ADMIN_LIST_LIMIT_MAX, Math.max(20, Math.floor(limit)));
+}
+
+function getAdminRowsByRowNumbers_(sheet, rowNumbers, width) {
+  const sortedRows = Array.from(new Set((rowNumbers || [])
+    .map(function (row) { return Number(row); })
+    .filter(function (row) { return row > 1; })))
+    .sort(function (a, b) { return a - b; });
+  if (!sortedRows.length) return [];
+
+  const groups = [];
+  sortedRows.forEach(function (row) {
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && row === lastGroup.end + 1) {
+      lastGroup.end = row;
+      return;
+    }
+    groups.push({ start: row, end: row });
+  });
+
+  const byRow = {};
+  groups.forEach(function (group) {
+    const values = sheet.getRange(group.start, 1, group.end - group.start + 1, width).getValues();
+    values.forEach(function (rowValues, index) {
+      byRow[group.start + index] = rowValues;
+    });
+  });
+
+  return rowNumbers
+    .map(function (rowNumber) {
+      return { rowNumber: rowNumber, values: byRow[rowNumber] };
+    })
+    .filter(function (item) {
+      return Array.isArray(item.values);
+    });
 }
 
 function buildAdminOrderFromRow_(row, rowNumber) {

@@ -1,8 +1,8 @@
-const ADMIN_CACHE = "cll-admin-pwa-v11";
+const ADMIN_CACHE = "cll-admin-pwa-v12";
 const ADMIN_SHELL = [
   "/admin.html",
   "/admin.css?v=20260703-admin-v4",
-  "/admin.js?v=20260703-copy-login-1",
+  "/admin.js?v=20260703-admin-speed-1",
   "/manifest.webmanifest",
   "/assets/admin-icon-512.png"
 ];

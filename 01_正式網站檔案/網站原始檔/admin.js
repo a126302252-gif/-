@@ -1,6 +1,9 @@
 const ADMIN_ENDPOINT = "https://script.google.com/macros/s/AKfycbwDT3asNWUlAHI3D5Yv7sjSkHPToDpj0Yk5wU7Pb-eiXAkWIUqJQ-nxdWCgcr4gpYZB/exec";
 const ADMIN_PROXY_ENDPOINT = "/.netlify/functions/admin-api";
 const ADMIN_TOKEN_KEY = "cll_admin_session_v1";
+const ADMIN_ORDERS_CACHE_KEY = "cll_admin_orders_cache_v1";
+const ADMIN_ORDERS_CACHE_TTL_MS = 2 * 60 * 1000;
+const ADMIN_LIST_LIMIT = 80;
 const ADMIN_STATUS_TABS = ["訂單成立", "已付款", "已完成", "已取消", "全部"];
 const ADMIN_PROXY_FALLBACK_ERRORS = new Set(["PROXY_FAILED", "TIMEOUT", "BAD_RESPONSE", "NETWORK_ERROR"]);
 const ADMIN_MUTATION_ACTIONS = new Set(["updateOrderStatus", "sendDiscordStatusNotify"]);
@@ -8,6 +11,8 @@ const ADMIN_MUTATION_ACTIONS = new Set(["updateOrderStatus", "sendDiscordStatusN
 let adminToken = localStorage.getItem(ADMIN_TOKEN_KEY) || "";
 let currentStatus = "訂單成立";
 let allOrders = [];
+let ordersByStatus = {};
+let adminCounts = {};
 let selectedOrder = null;
 let loading = false;
 
@@ -353,9 +358,45 @@ function getFilteredOrders() {
 }
 
 function renderCounts(counts = {}) {
+  adminCounts = { ...adminCounts, ...counts };
   ADMIN_STATUS_TABS.forEach((status) => {
-    if (countElements[status]) countElements[status].textContent = Number(counts[status] || 0);
+    if (countElements[status]) countElements[status].textContent = Number(adminCounts[status] || 0);
   });
+}
+
+function getCachedAdminOrders() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(ADMIN_ORDERS_CACHE_KEY) || "null");
+    if (!cached || Date.now() - Number(cached.cachedAt || 0) > ADMIN_ORDERS_CACHE_TTL_MS) return null;
+    return cached;
+  } catch (error) {
+    return null;
+  }
+}
+
+function cacheAdminOrders() {
+  try {
+    sessionStorage.setItem(ADMIN_ORDERS_CACHE_KEY, JSON.stringify({
+      cachedAt: Date.now(),
+      currentStatus,
+      ordersByStatus,
+      counts: adminCounts
+    }));
+  } catch (error) {
+    // 後台可照常使用，快取失敗只是不顯示暫存資料。
+  }
+}
+
+function hydrateCachedAdminOrders() {
+  const cached = getCachedAdminOrders();
+  if (!cached) return false;
+  ordersByStatus = cached.ordersByStatus && typeof cached.ordersByStatus === "object" ? cached.ordersByStatus : {};
+  adminCounts = cached.counts && typeof cached.counts === "object" ? cached.counts : {};
+  allOrders = Array.isArray(ordersByStatus[currentStatus]) ? ordersByStatus[currentStatus] : [];
+  renderCounts(adminCounts);
+  renderOrders();
+  setMessage(dashboardMessage, "先顯示剛剛看過的訂單，背景同步中...", "success");
+  return Boolean(allOrders.length || Object.keys(adminCounts).length);
 }
 
 function statusClass(status) {
@@ -469,14 +510,17 @@ async function copySelectedLoginInfo() {
 
 async function loadOrders(showToast = false) {
   if (!adminToken) return;
+  const loadingStatus = currentStatus;
+  const hasVisibleCache = Array.isArray(ordersByStatus[loadingStatus]) && ordersByStatus[loadingStatus].length > 0;
   setLoading(true);
   setMessage(
     dashboardMessage,
-    showToast ? "讀取訂單中，第一次開啟可能需要 10-30 秒..." : "正在同步訂單資料..."
+    hasVisibleCache ? "背景同步中，畫面可先操作..." : (showToast ? "讀取訂單中，第一次開啟可能需要 10-30 秒..." : "正在同步訂單資料...")
   );
   const response = await adminApi("listOrders", {
     token: adminToken,
-    status: currentStatus
+    status: loadingStatus,
+    limit: ADMIN_LIST_LIMIT
   }, 60000);
   setLoading(false);
 
@@ -492,14 +536,50 @@ async function loadOrders(showToast = false) {
     return;
   }
 
-  allOrders = Array.isArray(response.orders) ? response.orders : [];
+  ordersByStatus[loadingStatus] = Array.isArray(response.orders) ? response.orders : [];
+  if (loadingStatus === currentStatus) {
+    allOrders = ordersByStatus[loadingStatus];
+  }
   renderCounts(response.counts || {});
+  cacheAdminOrders();
   renderOrders();
-  setMessage(dashboardMessage, showToast ? `已更新 ${allOrders.length} 筆訂單。` : "", "success");
+  const moreText = response.hasMore ? `，另有 ${Math.max(0, Number(response.totalMatched || 0) - Number(response.orders?.length || 0))} 筆較舊訂單未列出` : "";
+  setMessage(dashboardMessage, showToast ? `已更新 ${ordersByStatus[loadingStatus].length} 筆${moreText}。` : "", "success");
+}
+
+function updateLocalOrderState(updatedOrder, previousStatus, nextStatus) {
+  if (!updatedOrder?.orderId) return;
+  const orderId = updatedOrder.orderId;
+  const normalizedPrevious = normalizeStatus(previousStatus);
+  const normalizedNext = normalizeStatus(nextStatus || updatedOrder.status);
+  updatedOrder.status = normalizedNext;
+  if (updatedOrder.display) updatedOrder.display.status = normalizedNext;
+
+  Object.keys(ordersByStatus).forEach((status) => {
+    ordersByStatus[status] = (ordersByStatus[status] || []).filter((order) => order.orderId !== orderId);
+  });
+
+  if (ordersByStatus[normalizedNext]) {
+    ordersByStatus[normalizedNext].unshift(updatedOrder);
+  }
+  if (ordersByStatus["全部"]) {
+    ordersByStatus["全部"].unshift(updatedOrder);
+  }
+
+  if (normalizedPrevious !== normalizedNext) {
+    adminCounts[normalizedPrevious] = Math.max(0, Number(adminCounts[normalizedPrevious] || 0) - 1);
+    adminCounts[normalizedNext] = Number(adminCounts[normalizedNext] || 0) + 1;
+  }
+
+  allOrders = Array.isArray(ordersByStatus[currentStatus]) ? ordersByStatus[currentStatus] : [];
+  renderCounts(adminCounts);
+  renderOrders();
+  cacheAdminOrders();
 }
 
 async function updateSelectedOrder(status) {
   if (!selectedOrder || !adminToken || loading) return;
+  const previousStatus = normalizeStatus(selectedOrder.status);
   const actionLabels = {
     "已付款": "標記已付款",
     "已完成": "標記已完成",
@@ -523,9 +603,10 @@ async function updateSelectedOrder(status) {
   }
 
   const updatedOrderId = selectedOrder.orderId;
+  const updatedOrder = response.order || { ...selectedOrder, status };
   closeOrderDetail();
+  updateLocalOrderState(updatedOrder, previousStatus, status);
   setMessage(dashboardMessage, `已更新 ${updatedOrderId}。`, "success");
-  await loadOrders(false);
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -554,6 +635,7 @@ loginForm.addEventListener("submit", async (event) => {
   setMessage(loginMessage, "");
   showDashboard(true);
   setMessage(dashboardMessage, "登入成功，正在讀取訂單...");
+  hydrateCachedAdminOrders();
   await loadOrders(true);
 });
 
@@ -579,7 +661,9 @@ statusTabs.forEach((button) => {
   button.addEventListener("click", () => {
     currentStatus = button.dataset.status || "訂單成立";
     statusTabs.forEach((tab) => tab.classList.toggle("active", tab === button));
-    loadOrders(true);
+    allOrders = Array.isArray(ordersByStatus[currentStatus]) ? ordersByStatus[currentStatus] : [];
+    renderOrders();
+    loadOrders(!allOrders.length);
   });
 });
 
@@ -607,6 +691,7 @@ if ("serviceWorker" in navigator) {
 
 if (adminToken) {
   showDashboard(true);
+  hydrateCachedAdminOrders();
   loadOrders(false);
 } else {
   showDashboard(false);
