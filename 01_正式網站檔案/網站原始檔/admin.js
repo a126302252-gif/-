@@ -28,6 +28,7 @@ const detailGrid = document.querySelector("#detailGrid");
 const completeOrderButton = document.querySelector("#completeOrderButton");
 const paidOrderButton = document.querySelector("#paidOrderButton");
 const cancelOrderButton = document.querySelector("#cancelOrderButton");
+const copyLoginButton = document.querySelector("#copyLoginButton");
 const togglePasswordButton = document.querySelector("#togglePasswordButton");
 
 const countElements = {
@@ -46,7 +47,7 @@ function setMessage(target, message, type = "") {
 
 function setLoading(value) {
   loading = Boolean(value);
-  [loginButton, refreshButton, completeOrderButton, paidOrderButton, cancelOrderButton].forEach((button) => {
+  [loginButton, refreshButton, completeOrderButton, paidOrderButton, cancelOrderButton, copyLoginButton].forEach((button) => {
     if (button) button.disabled = loading;
   });
 }
@@ -227,6 +228,81 @@ function buildOrderDisplayFields(order) {
   };
 }
 
+function normalizeOrderText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function safeCopyValue(value) {
+  return value == null ? "" : String(value).trim();
+}
+
+function isUidTopupOrder(display) {
+  const text = normalizeOrderText([
+    display.gameName,
+    display.productName,
+    display.productWithQuantity
+  ].join(" "));
+  return text.includes("uid");
+}
+
+function isCopyableLoginTopup(display) {
+  if (!display.hasLoginInfo || isUidTopupOrder(display)) return false;
+
+  const game = normalizeOrderText(display.gameName);
+  const product = normalizeOrderText(display.productName || display.productWithQuantity);
+  const server = normalizeOrderText(display.serverName);
+  const isLoginTopup = game.includes("上號") || product.includes("上號");
+  const isPubgmTaiwanLogin = game.includes("pubgm") && isLoginTopup && (server.includes("台服") || product.includes("台服"));
+  const isDeltaLogin = game.includes("三角洲") && isLoginTopup;
+
+  return isPubgmTaiwanLogin || isDeltaLogin;
+}
+
+function copyGameName(display) {
+  const game = String(display.gameName || "");
+  if (game.toLowerCase().includes("pubgm")) return "PUBGM";
+  if (game.includes("三角洲")) return "三角洲";
+  return game;
+}
+
+function buildLoginCopyText(display) {
+  return [
+    "【上號儲值資料】",
+    "",
+    `【遊戲】：${safeCopyValue(copyGameName(display))}`,
+    `【商品】：${safeCopyValue(display.productName)}`,
+    `【伺服器】：${safeCopyValue(display.serverName)}`,
+    `【登入方式】：${safeCopyValue(display.loginMethod)}`,
+    `【帳號】：${safeCopyValue(display.loginAccount)}`,
+    `【密碼】：${safeCopyValue(display.loginPassword)}`,
+    `【UID】：${safeCopyValue(display.uid)}`,
+    `【玩家名稱】：${safeCopyValue(display.playerName)}`,
+    `【數量】：${safeCopyValue(display.quantity)}`,
+    "",
+    "請照以上資料登入處理，完成後回覆：完成"
+  ].join("\n");
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("COPY_FAILED");
+}
+
 function infoRow(label, value) {
   const text = value == null || value === "" ? "未填" : value;
   return `
@@ -359,6 +435,10 @@ function openOrderDetail(order) {
   completeOrderButton.disabled = loading || normalized === "已完成";
   paidOrderButton.disabled = loading || normalized === "已付款";
   cancelOrderButton.disabled = loading || normalized === "已取消";
+  if (copyLoginButton) {
+    copyLoginButton.hidden = !isCopyableLoginTopup(display);
+    copyLoginButton.disabled = loading || copyLoginButton.hidden;
+  }
 
   if (typeof orderDialog.showModal === "function") {
     orderDialog.showModal();
@@ -369,7 +449,21 @@ function openOrderDetail(order) {
 
 function closeOrderDetail() {
   selectedOrder = null;
+  if (copyLoginButton) copyLoginButton.hidden = true;
   if (orderDialog.open) orderDialog.close();
+}
+
+async function copySelectedLoginInfo() {
+  if (!selectedOrder) return;
+  const display = buildOrderDisplayFields(selectedOrder);
+  if (!isCopyableLoginTopup(display)) return;
+
+  try {
+    await copyTextToClipboard(buildLoginCopyText(display));
+    window.alert("上號資料已複製，可以貼到群組");
+  } catch (error) {
+    window.alert("複製失敗，請再試一次。");
+  }
 }
 
 async function loadOrders(showToast = false) {
@@ -502,6 +596,7 @@ orderDialog.addEventListener("click", (event) => {
 completeOrderButton.addEventListener("click", () => updateSelectedOrder("已完成"));
 paidOrderButton.addEventListener("click", () => updateSelectedOrder("已付款"));
 cancelOrderButton.addEventListener("click", () => updateSelectedOrder("已取消"));
+copyLoginButton.addEventListener("click", copySelectedLoginInfo);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

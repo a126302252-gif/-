@@ -452,6 +452,18 @@ button:disabled {
   flex: 1 1 120px;
 }
 
+.dialog-actions .copy-login-button {
+  flex-basis: 100%;
+  border: 1px solid rgba(110, 231, 169, 0.34);
+  background: rgba(110, 231, 169, 0.13);
+  color: #d5fbe0;
+}
+
+.dialog-actions .copy-login-button:hover {
+  border-color: rgba(110, 231, 169, 0.58);
+  background: rgba(110, 231, 169, 0.2);
+}
+
 @media (min-width: 720px) {
   .admin-shell {
     padding-top: 28px;
