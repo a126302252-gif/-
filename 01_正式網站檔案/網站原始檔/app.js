@@ -1427,6 +1427,16 @@ function renderPriceCard(game, plan, label) {
     `;
 }
 
+function clearCatalogOnlyMarkup() {
+  if (categoryTabs) categoryTabs.innerHTML = "";
+  if (gameGrid) gameGrid.innerHTML = "";
+  if (catalogFilters) {
+    catalogFilters.hidden = true;
+    catalogFilters.innerHTML = "";
+  }
+  if (priceList) priceList.innerHTML = "";
+}
+
 function updateSummary() {
   const game = getGame();
   const plan = getPlan(game);
@@ -1459,9 +1469,13 @@ function selectGame(gameId, scroll = true) {
   }
   gameSelect.value = selectedGameId;
   renderPlanSelect();
-  renderDetail();
+  if (CURRENT_PAGE === "prices") {
+    renderDetail();
+  }
   updateSummary();
-  if (scroll) document.querySelector("#detail").scrollIntoView({ behavior: getPreferredScrollBehavior(), block: "start" });
+  if (scroll && CURRENT_PAGE === "prices") {
+    document.querySelector("#detail").scrollIntoView({ behavior: getPreferredScrollBehavior(), block: "start" });
+  }
 }
 
 function selectPlan(planId, scroll = true) {
@@ -1652,13 +1666,22 @@ function triggerOrderNotification(orderId) {
 }
 
 function renderCatalogView() {
-  renderCategories();
-  renderGames();
-  renderSelects();
-  renderDetail();
-  updateSummary();
-  updateLoginInfoFields();
-  updatePaymentPreview();
+  if (CURRENT_PAGE === "prices") {
+    renderCategories();
+    renderGames();
+    renderSelects();
+    renderDetail();
+  } else if (CURRENT_PAGE === "order") {
+    clearCatalogOnlyMarkup();
+    renderSelects();
+  } else {
+    clearCatalogOnlyMarkup();
+  }
+  if (CURRENT_PAGE !== "member") {
+    updateSummary();
+    updateLoginInfoFields();
+    updatePaymentPreview();
+  }
 }
 
 async function initApp() {

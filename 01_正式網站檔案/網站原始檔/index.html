@@ -64,7 +64,16 @@
     </script>
     <link rel="preconnect" href="https://static.line-scdn.net" crossorigin />
     <link rel="dns-prefetch" href="https://script.google.com" />
-    <link rel="preload" as="image" href="assets/dragon-premium-hero.webp" fetchpriority="high" />
+    <script>
+      if (document.documentElement.dataset.page === "prices") {
+        const heroPreload = document.createElement("link");
+        heroPreload.rel = "preload";
+        heroPreload.as = "image";
+        heroPreload.href = "assets/dragon-premium-hero.webp";
+        heroPreload.fetchPriority = "high";
+        document.head.appendChild(heroPreload);
+      }
+    </script>
     <link rel="stylesheet" href="styles.css?v=20260703-order-steps-1" />
     <script defer src="products.js?v=20260702-pubgm-login-split-1"></script>
     <script defer src="line-config.js?v=20260702-main-account-v1"></script>
@@ -521,6 +530,6 @@
       </section>
     </div>
 
-    <script defer src="app.js?v=20260703-order-steps-1"></script>
+    <script defer src="app.js?v=20260703-performance-1"></script>
   </body>
 </html>
