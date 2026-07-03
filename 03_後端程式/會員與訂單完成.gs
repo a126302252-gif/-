@@ -760,6 +760,7 @@ function adminUpdateOrderStatus_(data) {
     ensureOrderWorkflowColumns_(sheet);
     const row = findOrderRowById_(sheet, orderId);
     if (row <= 1) throw createAdminError_("ADMIN_ORDER_NOT_FOUND", "找不到這筆訂單。");
+    applyOrderWorkflowDataValidations_(sheet, row);
 
     if (status === "已完成") {
       finalizeOrderRow_(sheet, row);
@@ -3005,6 +3006,60 @@ function ensureOrderWorkflowColumns_(sheet) {
     .setBackground("#312e81")
     .setFontColor("#ffffff")
     .setHorizontalAlignment("center");
+  applyOrderWorkflowDataValidations_(sheet);
+}
+
+function getValidationListValues_(range) {
+  const rule = range.getDataValidation();
+  if (!rule) return [];
+  if (rule.getCriteriaType() !== SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) return [];
+  const values = rule.getCriteriaValues();
+  return Array.isArray(values[0]) ? values[0].map(function (value) {
+    return String(value || "").trim();
+  }) : [];
+}
+
+function validationListHasAll_(range, expectedValues) {
+  const values = getValidationListValues_(range);
+  return expectedValues.every(function (value) {
+    return values.indexOf(value) >= 0;
+  });
+}
+
+function hasCurrentOrderWorkflowDataValidations_(sheet) {
+  const sampleRow = Math.max(2, Math.min(Math.max(2, sheet.getLastRow()), sheet.getMaxRows()));
+  return validationListHasAll_(sheet.getRange(sampleRow, ORDER_FEATURE_STATUS_COLUMN), WORKFLOW_ORDER_STATUSES)
+    && validationListHasAll_(sheet.getRange(sampleRow, ORDER_FEATURE_COLUMNS.paymentStatus), WORKFLOW_PAYMENT_STATUSES)
+    && validationListHasAll_(sheet.getRange(sampleRow, ORDER_FEATURE_COLUMNS.paymentVerificationStatus), WORKFLOW_VERIFICATION_STATUSES);
+}
+
+function applyOrderWorkflowDataValidations_(sheet, rowNumber) {
+  const targetRow = Number(rowNumber || 0);
+  if (!targetRow && hasCurrentOrderWorkflowDataValidations_(sheet)) return;
+  const startRow = targetRow > 1 ? targetRow : 2;
+  const dataRowCount = targetRow > 1 ? 1 : Math.max(1, sheet.getMaxRows() - 1);
+  const statusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(WORKFLOW_ORDER_STATUSES, true)
+    .setAllowInvalid(false)
+    .build();
+  const paymentStatusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(WORKFLOW_PAYMENT_STATUSES, true)
+    .setAllowInvalid(false)
+    .build();
+  const verificationStatusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(WORKFLOW_VERIFICATION_STATUSES, true)
+    .setAllowInvalid(false)
+    .build();
+
+  sheet
+    .getRange(startRow, ORDER_FEATURE_STATUS_COLUMN, dataRowCount, 1)
+    .setDataValidation(statusRule);
+  sheet
+    .getRange(startRow, ORDER_FEATURE_COLUMNS.paymentStatus, dataRowCount, 1)
+    .setDataValidation(paymentStatusRule);
+  sheet
+    .getRange(startRow, ORDER_FEATURE_COLUMNS.paymentVerificationStatus, dataRowCount, 1)
+    .setDataValidation(verificationStatusRule);
 }
 
 function ensureMemberWorkflowColumns_(sheet) {
