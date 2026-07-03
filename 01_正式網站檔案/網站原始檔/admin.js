@@ -252,12 +252,11 @@ function isCopyableLoginTopup(display) {
 
   const game = normalizeOrderText(display.gameName);
   const product = normalizeOrderText(display.productName || display.productWithQuantity);
-  const server = normalizeOrderText(display.serverName);
   const isLoginTopup = game.includes("上號") || product.includes("上號");
-  const isPubgmTaiwanLogin = game.includes("pubgm") && isLoginTopup && (server.includes("台服") || product.includes("台服"));
+  const isPubgmLogin = game.includes("pubgm") && isLoginTopup;
   const isDeltaLogin = game.includes("三角洲") && isLoginTopup;
 
-  return isPubgmTaiwanLogin || isDeltaLogin;
+  return isPubgmLogin || isDeltaLogin;
 }
 
 function copyGameName(display) {
